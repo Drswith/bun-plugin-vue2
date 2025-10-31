@@ -15,7 +15,6 @@ import { createRollupError } from './utils/error'
 import type { ResolvedOptions } from '.'
 import { NORMALIZER_ID } from './utils/componentNormalizer'
 import { HMR_RUNTIME_ID } from './utils/hmrRuntime'
-import { build } from 'bun'
 
 export async function transformMain(
   code: string,
@@ -157,7 +156,6 @@ var __component__ = /*#__PURE__*/__normalizer(
       },
       resolvedMap
     )
-
     resolvedCode = code
     resolvedMap = resolvedMap ? (map as any) : resolvedMap
   }
