@@ -5,6 +5,8 @@
       "name": "bun-plugin-vue2",
       "devDependencies": {
         "@types/bun": "latest",
+        "slash": "^3.0.0",
+        "vue": "^2.7.16",
       },
     },
     "playground": {
@@ -22,6 +24,14 @@
     },
   },
   "packages": {
+    "@babel/helper-string-parser": ["@babel/helper-string-parser@7.27.1", "https://registry.npmmirror.com/@babel/helper-string-parser/-/helper-string-parser-7.27.1.tgz", {}, "sha512-qMlSxKbpRlAridDExk92nSobyDdpPijUq2DW6oDnUqd0iOGxmQjyqhMIihI9+zv4LPyZdRje2cavWPbCbWm3eA=="],
+
+    "@babel/helper-validator-identifier": ["@babel/helper-validator-identifier@7.28.5", "https://registry.npmmirror.com/@babel/helper-validator-identifier/-/helper-validator-identifier-7.28.5.tgz", {}, "sha512-qSs4ifwzKJSV39ucNjsvc6WVHs6b7S03sOh2OcHF9UHfVPqWWALUsNUVzhSBiItjRZoLHx7nIarVjqKVusUZ1Q=="],
+
+    "@babel/parser": ["@babel/parser@7.28.5", "https://registry.npmmirror.com/@babel/parser/-/parser-7.28.5.tgz", { "dependencies": { "@babel/types": "^7.28.5" }, "bin": "./bin/babel-parser.js" }, "sha512-KKBU1VGYR7ORr3At5HAtUQ+TV3SzRCXmA/8OdDZiLDBIZxVyzXuztPjfLd3BV1PRAQGCMWWSHYhL0F8d5uHBDQ=="],
+
+    "@babel/types": ["@babel/types@7.28.5", "https://registry.npmmirror.com/@babel/types/-/types-7.28.5.tgz", { "dependencies": { "@babel/helper-string-parser": "^7.27.1", "@babel/helper-validator-identifier": "^7.28.5" } }, "sha512-qQ5m48eI/MFLQ5PxQj4PFaprjyCTLI37ElWMmNs0K8Lk3dVeOdNpB3ks8jc7yM5CDmVC73eMVk/trk3fgmrUpA=="],
+
     "@types/bun": ["@types/bun@1.3.1", "https://registry.npmmirror.com/@types/bun/-/bun-1.3.1.tgz", { "dependencies": { "bun-types": "1.3.1" } }, "sha512-4jNMk2/K9YJtfqwoAa28c8wK+T7nvJFOjxI4h/7sORWcypRNxBpr+TPNaCfVWq70tLCJsqoFwcf0oI0JU/fvMQ=="],
 
     "@types/node": ["@types/node@24.9.2", "https://registry.npmmirror.com/@types/node/-/node-24.9.2.tgz", { "dependencies": { "undici-types": "~7.16.0" } }, "sha512-uWN8YqxXxqFMX2RqGOrumsKeti4LlmIMIyV0lgut4jx7KQBcBiW6vkDtIBvHnHIquwNfJhk8v2OtmO8zXWHfPA=="],
@@ -30,11 +40,21 @@
 
     "@types/react-dom": ["@types/react-dom@19.2.2", "https://registry.npmmirror.com/@types/react-dom/-/react-dom-19.2.2.tgz", { "peerDependencies": { "@types/react": "^19.2.0" } }, "sha512-9KQPoO6mZCi7jcIStSnlOWn2nEF3mNmyr3rIAsGnAbQKYbRLyqmeSc39EVgtxXVia+LMT8j3knZLAZAh+xLmrw=="],
 
+    "@vue/compiler-sfc": ["@vue/compiler-sfc@2.7.16", "https://registry.npmmirror.com/@vue/compiler-sfc/-/compiler-sfc-2.7.16.tgz", { "dependencies": { "@babel/parser": "^7.23.5", "postcss": "^8.4.14", "source-map": "^0.6.1" }, "optionalDependencies": { "prettier": "^1.18.2 || ^2.0.0" } }, "sha512-KWhJ9k5nXuNtygPU7+t1rX6baZeqOYLEforUPjgNDBnLicfHCoi48H87Q8XyLZOrNNsmhuwKqtpDQWjEFe6Ekg=="],
+
     "bun-react-template": ["bun-react-template@workspace:playground"],
 
     "bun-types": ["bun-types@1.3.1", "https://registry.npmmirror.com/bun-types/-/bun-types-1.3.1.tgz", { "dependencies": { "@types/node": "*" }, "peerDependencies": { "@types/react": "^19" } }, "sha512-NMrcy7smratanWJ2mMXdpatalovtxVggkj11bScuWuiOoXTiKIu2eVS1/7qbyI/4yHedtsn175n4Sm4JcdHLXw=="],
 
     "csstype": ["csstype@3.1.3", "https://registry.npmmirror.com/csstype/-/csstype-3.1.3.tgz", {}, "sha512-M1uQkMl8rQK/szD0LNhtqxIPLpimGm8sOBwU7lLnCpSbTyY3yeU1Vc7l4KT5zT4s/yOxHH5O7tIuuLOCnLADRw=="],
+
+    "nanoid": ["nanoid@3.3.11", "https://registry.npmmirror.com/nanoid/-/nanoid-3.3.11.tgz", { "bin": { "nanoid": "bin/nanoid.cjs" } }, "sha512-N8SpfPUnUp1bK+PMYW8qSWdl9U+wwNWI4QKxOYDy9JAro3WMX7p2OeVRF9v+347pnakNevPmiHhNmZ2HbFA76w=="],
+
+    "picocolors": ["picocolors@1.1.1", "https://registry.npmmirror.com/picocolors/-/picocolors-1.1.1.tgz", {}, "sha512-xceH2snhtb5M9liqDsmEw56le376mTZkEX/jEb/RxNFyegNul7eNslCXP9FDj/Lcu0X8KEyMceP2ntpaHrDEVA=="],
+
+    "postcss": ["postcss@8.5.6", "https://registry.npmmirror.com/postcss/-/postcss-8.5.6.tgz", { "dependencies": { "nanoid": "^3.3.11", "picocolors": "^1.1.1", "source-map-js": "^1.2.1" } }, "sha512-3Ybi1tAuwAP9s0r1UQ2J4n5Y0G05bJkpUIO0/bI9MhwmD70S5aTWbXGBwxHrelT+XM1k6dM0pk+SwNkpTRN7Pg=="],
+
+    "prettier": ["prettier@2.8.8", "https://registry.npmmirror.com/prettier/-/prettier-2.8.8.tgz", { "bin": { "prettier": "bin-prettier.js" } }, "sha512-tdN8qQGvNjw4CHbY+XXk0JgCXn9QiF21a55rBe5LJAU+kDyC4WQn4+awm2Xfk2lQMk5fKup9XgzTZtGkjBdP9Q=="],
 
     "react": ["react@19.2.0", "https://registry.npmmirror.com/react/-/react-19.2.0.tgz", {}, "sha512-tmbWg6W31tQLeB5cdIBOicJDJRR2KzXsV7uSK9iNfLWQ5bIZfxuPEHp7M8wiHyHnn0DD1i7w3Zmin0FtkrwoCQ=="],
 
@@ -42,6 +62,14 @@
 
     "scheduler": ["scheduler@0.27.0", "https://registry.npmmirror.com/scheduler/-/scheduler-0.27.0.tgz", {}, "sha512-eNv+WrVbKu1f3vbYJT/xtiF5syA5HPIMtf9IgY/nKg0sWqzAUEvqY/xm7OcZc/qafLx/iO9FgOmeSAp4v5ti/Q=="],
 
+    "slash": ["slash@3.0.0", "https://registry.npmmirror.com/slash/-/slash-3.0.0.tgz", {}, "sha512-g9Q1haeby36OSStwb4ntCGGGaKsaVSjQ68fBxoQcutl5fS1vuY18H3wSt3jFyFtrkx+Kz0V1G85A4MyAdDMi2Q=="],
+
+    "source-map": ["source-map@0.6.1", "https://registry.npmmirror.com/source-map/-/source-map-0.6.1.tgz", {}, "sha512-UjgapumWlbMhkBgzT7Ykc5YXUT46F0iKu8SGXq0bcwP5dz/h0Plj6enJqjz1Zbq2l5WaqYnrVbwWOWMyF3F47g=="],
+
+    "source-map-js": ["source-map-js@1.2.1", "https://registry.npmmirror.com/source-map-js/-/source-map-js-1.2.1.tgz", {}, "sha512-UXWMKhLOwVKb728IUtQPXxfYU+usdybtUrK/8uGE8CQMvrhOpwvzDBwj0QhSL7MQc7vIsISBG8VQ8+IDQxpfQA=="],
+
     "undici-types": ["undici-types@7.16.0", "https://registry.npmmirror.com/undici-types/-/undici-types-7.16.0.tgz", {}, "sha512-Zz+aZWSj8LE6zoxD+xrjh4VfkIG8Ya6LvYkZqtUQGJPZjYl53ypCaUwWqo7eI0x66KBGeRo+mlBEkMSeSZ38Nw=="],
+
+    "vue": ["vue@2.7.16", "https://registry.npmmirror.com/vue/-/vue-2.7.16.tgz", { "dependencies": { "@vue/compiler-sfc": "2.7.16", "csstype": "^3.1.0" } }, "sha512-4gCtFXaAA3zYZdTp5s4Hl2sozuySsgz4jy1EnpBHNfpMa9dK1ZCG7viqBPCwXtmgc8nHqUsAu3G4gtmXkkY3Sw=="],
   }
 }
