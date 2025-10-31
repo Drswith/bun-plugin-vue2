@@ -5,8 +5,8 @@
   "type": "module",
   "scripts": {
     "dev": "bun --hot ./src/index.ts",
-    "build": "bun build ./src/index.ts",
-    "bd":"bun build.ts"
+    "build": "bun build ./src/index.ts --outdir=dist --sourcemap --target=bun",
+    "build:playground": "cd playground && bun run build"
   },
   "dependencies": {
   },
