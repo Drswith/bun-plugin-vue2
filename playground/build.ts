@@ -7,7 +7,8 @@ async function build() {
     Bun.spawn(['rm', '-rf', 'dist'])
 
     const result = await Bun.build({
-      entrypoints: ["./simple-test.html"],
+      // entrypoints: ["./simple-test.html"],
+      entrypoints: ["./index.html"],
       outdir: "dist",
       sourcemap: true,
       publicPath: "/",

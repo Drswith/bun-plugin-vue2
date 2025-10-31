@@ -3,18 +3,12 @@
     <h2>Simple Test Component</h2>
     <p>Count: {{ count }}</p>
     <button @click="increment">Increment</button>
-    <!-- <Test2 /> -->
-
   </div>
 </template>
 
 <script>
-// import Test2 from './SimpleTest2.vue'
 export default {
   name: 'SimpleTest',
-  components: {
-    // Test2
-  },
   data() {
     return {
       count: 0
@@ -28,8 +22,8 @@ export default {
 }
 </script>
 
-<style scoped>
-.simple-test {
+<style >
+/* .simple-test {
   padding: 20px;
   border: 1px solid #ccc;
   margin: 10px 0;
@@ -50,5 +44,5 @@ export default {
 
 .simple-test button:hover {
   background: #369870;
-}
+} */
 </style>

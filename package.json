@@ -9,8 +9,7 @@
     "dev:playground": "cd playground && bun run dev",
     "build:playground": "cd playground && bun run build"
   },
-  "dependencies": {
-  },
+  "dependencies": {},
   "devDependencies": {
     "@types/bun": "latest",
     "slash": "^3.0.0",
@@ -19,6 +18,11 @@
   },
   "workspaces": [
     "playground",
+    "playground-react",
     "packages/*"
-  ]
+  ],
+  "module": "src/index.ts",
+  "peerDependencies": {
+    "typescript": "^5"
+  }
 }

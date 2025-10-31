@@ -19,6 +19,23 @@ import { transformTemplateAsModule } from './template'
 import { transformStyle } from './style'
 import { NORMALIZER_MODULE_ID, NORMALIZER_ID, normalizerCode } from './utils/componentNormalizer'
 import { HMR_RUNTIME_MODULE_ID, HMR_RUNTIME_ID, hmrRuntimeCode } from './utils/hmrRuntime'
+import {
+  normalizePath,
+  tryStatSync,
+  isFileReadable,
+  isDirectory,
+  tryResolveRealFile,
+  tryResolveRealFileWithExtensions,
+  tryResolveRealFileOrType,
+  isInNodeModules,
+  findNearestPackageData,
+  resolvePackageEntry,
+  createResolvedId,
+  bareImportRE,
+  deepImportRE,
+  DEFAULT_EXTENSIONS,
+  DEFAULT_MAIN_FIELDS
+} from './utils/resolve'
 
 
 export { parseVueRequest } from './utils/query'
@@ -196,16 +213,116 @@ export default function vuePlugin(rawOptions: Options = {}): BunPlugin {
       }
     },
     resolve: async (source, importer, options) => {
-      return {
-        id:'',
-        external: 'absolute',
-        meta: {},
-        moduleSideEffects: true,
-        syntheticNamedExports: true
+      // 处理虚拟模块
+      if (source.startsWith('\0')) {
+        return createResolvedId(source)
       }
+      
+      // 处理绝对路径
+      if (path.isAbsolute(source)) {
+        const resolved = tryResolveRealFileOrType(source, DEFAULT_EXTENSIONS, false)
+        if (resolved) {
+          return createResolvedId(resolved)
+        }
+        return null
+      }
+      
+      // 处理相对路径
+      if (source.startsWith('.') && importer) {
+        const importerDir = path.dirname(importer)
+        const resolved = path.resolve(importerDir, source)
+        const finalPath = tryResolveRealFileOrType(resolved, DEFAULT_EXTENSIONS, false)
+        if (finalPath) {
+          return createResolvedId(finalPath)
+        }
+        return null
+      }
+      
+      // 处理bare imports（裸导入）
+      if (bareImportRE.test(source)) {
+        return resolveBareImport(source, importer, options)
+      }
+      
+      return null
     },
   }
 
+  /**
+   * 解析bare import
+   */
+  async function resolveBareImport(
+    id: string, 
+    importer?: string, 
+    options?: { custom?: any; isEntry?: boolean; skipSelf?: boolean }
+  ): Promise<ResolvedId | null> {
+    // 解析包名和子路径
+    const match = deepImportRE.exec(id)
+    const packageName = match ? match[1] || match[2] : id
+    const subpath = match ? id.slice(packageName.length + 1) : ''
+    
+    // 查找node_modules中的包
+    const packageDir = await findPackageDir(packageName, importer)
+    if (!packageDir) {
+      return null
+    }
+    
+    // 如果有子路径，直接解析
+    if (subpath) {
+      const subpathResolved = path.resolve(packageDir, subpath)
+      const finalPath = tryResolveRealFileOrType(subpathResolved, DEFAULT_EXTENSIONS, false)
+      if (finalPath) {
+        return createResolvedId(finalPath)
+      }
+      return null
+    }
+    
+    // 解析包入口点
+    const packageData = findNearestPackageData(packageDir)
+    if (!packageData) {
+      return null
+    }
+    
+    const entryPath = resolvePackageEntry(
+      id,
+      packageData,
+      packageDir,
+      DEFAULT_EXTENSIONS,
+      false
+    )
+    
+    if (entryPath) {
+      return createResolvedId(entryPath)
+    }
+    
+    return null
+  }
+
+  /**
+   * 查找包目录
+   */
+  async function findPackageDir(packageName: string, importer?: string): Promise<string | null> {
+    // 从importer开始向上查找node_modules
+    let searchDir = importer ? path.dirname(importer) : process.cwd()
+    
+    while (searchDir !== path.dirname(searchDir)) {
+      const nodeModulesDir = path.join(searchDir, 'node_modules')
+      const packageDir = path.join(nodeModulesDir, packageName)
+      
+      if (isDirectory(packageDir)) {
+        return packageDir
+      }
+      
+      searchDir = path.dirname(searchDir)
+    }
+    
+    // 最后尝试全局node_modules
+    const globalNodeModules = path.join(process.cwd(), 'node_modules', packageName)
+    if (isDirectory(globalNodeModules)) {
+      return globalNodeModules
+    }
+    
+    return null
+  }
 
   return {
     name: 'bun:vue2',
