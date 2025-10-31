@@ -274,90 +274,37 @@ export default function vuePlugin(rawOptions: Options = {}): BunPlugin {
         filter: /.*/
         // filter: /\.vue/
       }, ({ path: id }) => {
-        console.log('resolveId', id)
+        console.log('resolveId: ', id)
 
         // component export helper
         if (id === NORMALIZER_ID) {
           console.log('NORMALIZER_ID', NORMALIZER_MODULE_ID)
-          return { path: NORMALIZER_ID, namespace: 'vue-sfc' }
+          return { path: NORMALIZER_ID, namespace: 'vue-sfc-helper' }
         }
         if (id === HMR_RUNTIME_ID) {
           console.log('[HMR] HMR_RUNTIME_ID', HMR_RUNTIME_MODULE_ID)
-          return { path: HMR_RUNTIME_ID, namespace: 'vue-sfc' }
+          return { path: HMR_RUNTIME_ID, namespace: 'vue-sfc-helper' }
         }
         // serve sub-part requests (*?vue) as virtual modules
-        if (parseVueRequest(id).query.vue) {
+        // if (parseVueRequest(id).query.vue) {
+        if (/\.vue/.test(id)) {
           return { path: id, namespace: 'vue-sfc' }
         }
-        // return undefined
+        return undefined
       });
 
-      // ==================== resolveId end ======================
-
-      build.onLoad({ filter: /.*/, namespace: 'vue-sfc' }, async ({ path: id, namespace, loader, defer }) => {
-        // const ssr = opt?.ssr === true
-        console.log('===> onLoad', id)
-        const ssr = false
+      build.onLoad({ filter: /.*/, namespace: 'vue-sfc-helper' }, ({ path: id }) => {
         if (id === NORMALIZER_ID) {
-          // console.log(' onLoad NORMALIZER_ID', normalizerCode)
           return { contents: normalizerCode }
         }
         if (id === HMR_RUNTIME_ID) {
           return { contents: hmrRuntimeCode }
         }
-        const { filename, query } = parseVueRequest(id)
-
-        console.log('parseVueRequest', filename, query)
-
-        if(query.raw){
-          return undefined
-        }
-
-        if (!filter(filename) && !query.vue) {
-          // if (
-          //   !query.vue &&
-          //   refTransformFilter(filename) &&
-          //   options.compiler.shouldTransformRef(code)
-          // ) {
-          //   return options.compiler.transformRef(code, {
-          //     filename,
-          //     sourceMap: true
-          //   })
-          // }
-          return undefined
-        }
-
-        if (query.vue) {
-          if (query.src) {
-            // return fs.readFileSync(filename, 'utf-8')
-            return { contents: await Bun.file(filename).text()}
-          }
-          const descriptor = getDescriptor(filename, options)!
-          let block: SFCBlock | null | undefined
-          if (query.type === 'script') {
-            // handle <scrip> + <script setup> merge via compileScript()
-            block = getResolvedScript(descriptor, ssr)
-          } else if (query.type === 'template') {
-            block = descriptor.template!
-          } else if (query.type === 'style') {
-            block = descriptor.styles[query.index!]
-          } else if (query.index != null) {
-            block = descriptor.customBlocks[query.index]
-          }
-          if (block) {
-            // return {
-            //   code: block.content,
-            //   map: block.map as any
-            // }
-            console.log(`[${query.type}] returning block.content`, block.content)
-            return { contents: block.content }
-
-          }
-        }
-
       });
 
-      build.onLoad({ filter: /.*/ }, async ({ path }) => {
+      // ==================== resolveId end ======================
+
+      build.onLoad({ filter: /.*/,namespace: 'vue-sfc'}, async ({ path }) => {
         console.log('onLoad', path)
         const ssr = false
         const { filename, query } = parseVueRequest(path)
@@ -377,56 +324,88 @@ export default function vuePlugin(rawOptions: Options = {}): BunPlugin {
           // }
           return undefined
         }
+
         if (!query.vue) {
           // main request
           // return transformMain(code, filename, options, this, ssr)
           const rawCode = await Bun.file(path).text();
           const transformed = await transformMain(rawCode, filename, options, pluginContext, ssr);
-          console.log('transformed', transformed?.code)
+          // console.log('transformed', transformed?.code)
           await Bun.write(filename+'.js', transformed?.code || rawCode);
           return { contents: transformed?.code || rawCode }
         }
         else {
+          console.log('query.type => ',  query)
           // sub block request
           const descriptor = query.src
             ? getSrcDescriptor(filename, query)!
             : getDescriptor(filename, options)!
 
-          if (query.type === 'template') {
-            const transformed = await transformTemplateAsModule(
-              descriptor.template!.content,
-              descriptor,
-              options,
-              pluginContext,
-              ssr
-            )
+          if (query.src) {
+            // return fs.readFileSync(filename, 'utf-8')
+            return { contents: await Bun.file(filename).text()}
+          }
 
-            console.log('[template] transformed', transformed)
-
-            return {
-              contents: transformed
+          let block: SFCBlock | null | undefined
+          if (query.type === 'script') {
+            // handle <scrip> + <script setup> merge via compileScript()
+            block = getResolvedScript(descriptor, ssr)
+            if (block){
+              console.log(`[script block] returning block.content`, block.content)
+              return { contents: block.content }
             }
           }
+          else if (query.type === 'template') {
+            block = descriptor.template!
+            if (block) {
+              console.log(`[template block] returning block.content`, block.content)
+              const transformed = await transformTemplateAsModule(
+                block.content,
+                descriptor,
+                options,
+                pluginContext,
+                ssr
+              )
+
+              console.log('[template] transformed', transformed)
+
+              return {
+                contents: transformed
+              }
+            }
+
+          }
           else if (query.type === 'style') {
-            const transformed = await transformStyle(
-              descriptor.styles[Number(query.index)].content,
-              descriptor,
-              Number(query.index),
-              options,
-              pluginContext,
-              filename
-            )
+            block = descriptor.styles[query.index!]
+            if (block) {
+              console.log(`[style block] returning block.content`, block.content)
+              const transformed = await transformStyle(
+                block.content,
+                descriptor,
+                Number(query.index),
+                options,
+                pluginContext,
+                filename
+              )
 
-            console.log('[style] transformed', transformed)
+              console.log('[style] transformed', transformed)
 
-            return {
-              contents: transformed?.code || ''
+              return {
+                contents: transformed?.code || ''
+              }
+            }
+
+          }
+          else if (query.index != null) {
+            block = descriptor.customBlocks[query.index]
+            if (block) {
+              console.log(`[custom block] returning block.content`, block.content)
+              return { contents: block.content }
             }
           }
         }
       });
 
-      // ============================================================
     }
   }
 
