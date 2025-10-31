@@ -9,7 +9,8 @@ async function build() {
     const result = await Bun.build({
       entrypoints: ["./simple-test.html"],
       outdir: "dist",
-      // sourcemap: true,
+      sourcemap: true,
+      publicPath: "/",
       // target: "browser",
       // // minify: true,
       // minify: false,
