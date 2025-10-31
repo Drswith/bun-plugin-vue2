@@ -1,10 +1,8 @@
 import Vue from 'vue'
-// import SimpleTest from './SimpleTest.vue'
-
-// console.log(SimpleTest)
+import SimpleTest from './SimpleTest.vue'
 
 new Vue({
-  render: h => h('div','<h1>Hello World</h1>'),
+  render: h => h(SimpleTest),
 }).$mount('#app')
 
 console.log('simple.js')

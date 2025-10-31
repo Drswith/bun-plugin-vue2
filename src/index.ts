@@ -300,10 +300,10 @@ export default function vuePlugin(rawOptions: Options = {}): BunPlugin {
         const ssr = false
         if (id === NORMALIZER_ID) {
           // console.log(' onLoad NORMALIZER_ID', normalizerCode)
-          return { contents: normalizerCode, loader: 'js' }
+          return { contents: normalizerCode }
         }
         if (id === HMR_RUNTIME_ID) {
-          return { contents: hmrRuntimeCode, loader: 'js' }
+          return { contents: hmrRuntimeCode }
         }
         const { filename, query } = parseVueRequest(id)
 
@@ -328,31 +328,65 @@ export default function vuePlugin(rawOptions: Options = {}): BunPlugin {
         }
 
         if (query.vue) {
-          // if (query.src) {
-          //   // return fs.readFileSync(filename, 'utf-8')
-          //   return { contents: await Bun.file(filename).text(), loader: 'js' }
-          // }
-          // const descriptor = getDescriptor(filename, options)!
-          // let block: SFCBlock | null | undefined
-          // if (query.type === 'script') {
-          //   // handle <scrip> + <script setup> merge via compileScript()
-          //   block = getResolvedScript(descriptor, ssr)
-          // } else if (query.type === 'template') {
-          //   block = descriptor.template!
-          // } else if (query.type === 'style') {
-          //   block = descriptor.styles[query.index!]
-          // } else if (query.index != null) {
-          //   block = descriptor.customBlocks[query.index]
-          // }
-          // if (block) {
-          //   // return {
-          //   //   code: block.content,
-          //   //   map: block.map as any
-          //   // }
-          //   console.log(`[${query.type}] returning block.content`, block.content)
-          //   // return { contents: block.content, loader: 'js' }
+          if (query.src) {
+            // return fs.readFileSync(filename, 'utf-8')
+            return { contents: await Bun.file(filename).text()}
+          }
+          const descriptor = getDescriptor(filename, options)!
+          let block: SFCBlock | null | undefined
+          if (query.type === 'script') {
+            // handle <scrip> + <script setup> merge via compileScript()
+            block = getResolvedScript(descriptor, ssr)
+          } else if (query.type === 'template') {
+            block = descriptor.template!
+          } else if (query.type === 'style') {
+            block = descriptor.styles[query.index!]
+          } else if (query.index != null) {
+            block = descriptor.customBlocks[query.index]
+          }
+          if (block) {
+            // return {
+            //   code: block.content,
+            //   map: block.map as any
+            // }
+            console.log(`[${query.type}] returning block.content`, block.content)
+            return { contents: block.content }
 
+          }
+        }
+
+      });
+
+      build.onLoad({ filter: /.*/ }, async ({ path }) => {
+        console.log('onLoad', path)
+        const ssr = false
+        const { filename, query } = parseVueRequest(path)
+        if (query.raw) {
+          return undefined
+        }
+        if (!filter(filename) && !query.vue) {
+          // if (
+          //   !query.vue &&
+          //   refTransformFilter(filename) &&
+          //   options.compiler.shouldTransformRef(code)
+          // ) {
+          //   return options.compiler.transformRef(code, {
+          //     filename,
+          //     sourceMap: true
+          //   })
           // }
+          return undefined
+        }
+        if (!query.vue) {
+          // main request
+          // return transformMain(code, filename, options, this, ssr)
+          const rawCode = await Bun.file(path).text();
+          const transformed = await transformMain(rawCode, filename, options, pluginContext, ssr);
+          console.log('transformed', transformed?.code)
+          await Bun.write(filename+'.js', transformed?.code || rawCode);
+          return { contents: transformed?.code || rawCode }
+        }
+        else {
           // sub block request
           const descriptor = query.src
             ? getSrcDescriptor(filename, query)!
@@ -370,8 +404,7 @@ export default function vuePlugin(rawOptions: Options = {}): BunPlugin {
             console.log('[template] transformed', transformed)
 
             return {
-              contents: transformed,
-              loader: 'js'
+              contents: transformed
             }
           }
           else if (query.type === 'style') {
@@ -387,73 +420,13 @@ export default function vuePlugin(rawOptions: Options = {}): BunPlugin {
             console.log('[style] transformed', transformed)
 
             return {
-              contents: transformed?.code || '',
-              loader: 'css'
+              contents: transformed?.code || ''
             }
           }
-
         }
       });
 
-      build.onLoad({ filter: /\.vue$/ }, async ({ path }) => {
-        console.log('onLoad', path)
-        const ssr = false
-        const rawCode = await Bun.file(path).text();
-        const [filename] = path.split(`?`, 2)
-        const transformed = await transformMain(rawCode, filename, options, pluginContext, ssr);
-        return { contents: transformed?.code || rawCode, loader: 'js' }
-      });
-
       // ============================================================
-
-
-
-
-      // build.onResolve({ filter: /.*/, namespace: "file" }, args => {
-      //   if (args.path.startsWith("images/")) {
-      //     return {
-      //       path: args.path.replace("images/", "./public/images/"),
-      //     };
-      //   }
-      // });
-
-      // build.onLoad({ filter: /env/, namespace: "file" }, args => {
-      //   return {
-      //     contents: `export default ${JSON.stringify(process.env)}`,
-      //     loader: "js",
-      //   };
-      // });
-
-      // Each module that goes through this onLoad callback
-      // will record its imports in `trackedImports`
-      // build.onLoad({ filter: /\.ts/ }, async ({ path }) => {
-      //   const contents = await Bun.file(path).arrayBuffer();
-
-      //   const imports = transpiler.scanImports(contents);
-
-      //   for (const i of imports) {
-      //     trackedImports[i.path] = (trackedImports[i.path] || 0) + 1;
-      //   }
-
-      //   return undefined;
-      // });
-
-      // build.onLoad({ filter: /stats\.json/ }, async ({ defer }) => {
-      //   // Wait for all files to be loaded, ensuring
-      //   // that every file goes through the above `onLoad()` function
-      //   // and their imports tracked
-      //   await defer();
-
-      //   console.log("Bundle finished!");
-      //   console.log("trackedImports:", trackedImports);
-
-      //   // Emit JSON containing the stats of each import
-      //   return {
-      //     contents: `export default ${JSON.stringify(trackedImports)}`,
-      //     loader: "json",
-      //   };
-      // });
-
     }
   }
 
