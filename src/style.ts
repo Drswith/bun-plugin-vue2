@@ -1,8 +1,14 @@
 import type { SFCDescriptor } from 'vue/compiler-sfc'
-import type { ExistingRawSourceMap, TransformPluginContext } from 'rollup'
+import type { ExistingRawSourceMap, TransformPluginContext } from '.'
 import type { RawSourceMap } from 'source-map'
-import { formatPostcssSourceMap } from 'vite'
+// import { formatPostcssSourceMap } from 'vite'
 import type { ResolvedOptions } from '.'
+
+function formatPostcssSourceMap(rawMap: ExistingRawSourceMap, file: string): Promise<ExistingRawSourceMap>{
+  return new Promise((resolve) => {
+    resolve(rawMap)
+  })
+}
 
 export async function transformStyle(
   code: string,

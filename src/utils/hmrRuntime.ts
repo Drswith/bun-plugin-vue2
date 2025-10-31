@@ -1,4 +1,5 @@
-export const HMR_RUNTIME_ID = '\0plugin-vue2:hmr-runtime'
+export const HMR_RUNTIME_MODULE_ID = 'plugin-vue2:hmr-runtime'
+export const HMR_RUNTIME_ID = '\0' + HMR_RUNTIME_MODULE_ID
 
 export const hmrRuntimeCode = `
 var __VUE_HMR_RUNTIME__ = Object.create(null)

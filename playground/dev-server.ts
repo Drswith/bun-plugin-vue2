@@ -1,16 +1,26 @@
-import app from './index.html';
+import { serve } from "bun";
+// import app from './index.html';
+import app from './simple-test.html';
 
-async function serve() {
+
+async function devServer() {
   try {
-    const server = Bun.serve({
+    const server = serve({
       port: 3000,
-      development: true,
       routes: {
-        '/': app
-      }
+        '/*': app
+      },
+      development: process.env.NODE_ENV !== "production" && {
+        // Enable browser hot reloading in development
+        hmr: true,
+
+        // Echo console logs from the browser to the server
+        console: true,
+      },
+
     })
 
-    console.log(`Server running at http://localhost:${server.port}`)
+    console.log(`🚀 Server running at ${server.url}`);
 
   } catch (e) {
     console.error('Server failed to start:')
@@ -19,5 +29,5 @@ async function serve() {
 }
 
 if (import.meta.main) {
-  serve()
+  devServer()
 }

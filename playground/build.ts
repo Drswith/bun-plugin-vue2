@@ -2,17 +2,21 @@ import vuePlugin from '../src/index'
 
 async function build() {
   try {
+
+    // 删除outdir
+    Bun.spawn(['rm', '-rf', 'dist'])
+
     const result = await Bun.build({
       entrypoints: ["./simple-test.html"],
       outdir: "dist",
-      sourcemap: true,
-      target: "browser",
-      // minify: true,
-      minify: false,
-      define: {
-        'process.env.NODE_ENV': JSON.stringify('production'),
-      },
-      env: "BUN_PUBLIC_*",
+      // sourcemap: true,
+      // target: "browser",
+      // // minify: true,
+      // minify: false,
+      // define: {
+      //   'process.env.NODE_ENV': JSON.stringify('production'),
+      // },
+      // env: "BUN_PUBLIC_*",
       plugins: [
         vuePlugin(),
       ],

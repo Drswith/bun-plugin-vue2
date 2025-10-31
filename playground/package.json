@@ -4,7 +4,10 @@
   "private": true,
   "description": "",
   "scripts": {
-    "dev": "bun dev-server.ts",
+    "dev": "bun --hot dev-server.ts",
     "build": "bun build.ts"
+  },
+  "dependencies": {
+    "vue": "^2.7.16"
   }
 }
