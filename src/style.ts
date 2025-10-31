@@ -1,22 +1,19 @@
 import type { SFCDescriptor } from 'vue/compiler-sfc'
+import type { ExistingRawSourceMap, TransformPluginContext } from 'rollup'
 import type { RawSourceMap } from 'source-map'
+import { formatPostcssSourceMap } from 'vite'
 import type { ResolvedOptions } from '.'
-
-// Mock plugin context interface for Bun environment
-interface PluginContext {
-  error(err: any): void
-  warn(warning: any): void
-}
 
 export async function transformStyle(
   code: string,
   descriptor: SFCDescriptor,
   index: number,
   options: ResolvedOptions,
-  pluginContext: PluginContext,
+  pluginContext: TransformPluginContext,
   filename: string
 ) {
   const block = descriptor.styles[index]
+  // vite already handles pre-processors and CSS module so this is only
   // applying SFC-specific transforms like scoped mode and CSS vars rewrite (v-bind(var))
   const result = await options.compiler.compileStyleAsync({
     ...options.style,
@@ -52,9 +49,13 @@ export async function transformStyle(
     return null
   }
 
-  // Simple source map handling for Bun environment
   const map = result.map
-    ? formatSourceMap(result.map as RawSourceMap, filename)
+    ? await formatPostcssSourceMap(
+        // version property of result.map is declared as string
+        // but actually it is a number
+        result.map as Omit<RawSourceMap, 'version'> as ExistingRawSourceMap,
+        filename
+      )
     : ({ mappings: '' } as any)
 
   return {
@@ -71,17 +72,5 @@ function getLine(source: string, start: number) {
     if (cur >= start) {
       return i
     }
-  }
-  return 0
-}
-
-// Simple source map formatter for Bun environment
-function formatSourceMap(map: RawSourceMap, filename: string): RawSourceMap {
-  return {
-    ...map,
-    file: filename,
-    sources: map.sources?.map(source => 
-      source.startsWith('/') ? source : filename
-    ) || [filename]
   }
 }

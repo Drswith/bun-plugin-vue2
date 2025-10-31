@@ -1,6 +1,6 @@
 import fs from 'node:fs'
 import path from 'node:path'
-import type { BunPlugin, OnLoadResult } from 'bun'
+import type { BunPlugin } from 'bun'
 import process from 'node:process'
 import type {
   SFCBlock,
@@ -19,6 +19,7 @@ import { transformTemplateAsModule } from './template'
 import { transformStyle } from './style'
 import { NORMALIZER_ID, normalizerCode } from './utils/componentNormalizer'
 import { HMR_RUNTIME_ID, hmrRuntimeCode } from './utils/hmrRuntime'
+
 
 export { parseVueRequest } from './utils/query'
 export type { VueQuery } from './utils/query'
@@ -44,6 +45,8 @@ export interface Options {
   >
   style?: Partial<Pick<SFCStyleCompileOptions, 'trim'>>
 
+  // customElement?: boolean | string | RegExp | (string | RegExp)[]
+  // reactivityTransform?: boolean | string | RegExp | (string | RegExp)[]
   compiler?: typeof _compiler
 }
 
@@ -56,27 +59,13 @@ export interface ResolvedOptions extends Options {
   devToolsEnabled?: boolean
 }
 
-// Mock plugin context for Bun environment
-class BunPluginContext {
-  error(err: any) {
-    console.error('Vue Plugin Error:', err)
-    throw new Error(err.message || err)
-  }
-
-  warn(warning: any) {
-    console.warn('Vue Plugin Warning:', warning.message || warning)
-  }
-
-  emitFile(file: any) {
-    // In Bun environment, we handle file emission differently
-    console.log('Emit file:', file)
-  }
-}
-
 export default function vuePlugin(rawOptions: Options = {}): BunPlugin {
+
   const {
     include = /\.vue$/,
     exclude
+    // customElement = /\.ce\.vue$/,
+    // reactivityTransform = false
   } = rawOptions
 
   const filter = createFilter(include, exclude)
@@ -87,156 +76,168 @@ export default function vuePlugin(rawOptions: Options = {}): BunPlugin {
     ...rawOptions,
     include,
     exclude,
+    // customElement,
+    // reactivityTransform,
     root: process.cwd(),
     sourceMap: true,
     cssDevSourcemap: false,
     devToolsEnabled: process.env.NODE_ENV !== 'production'
   }
 
-  const pluginContext = new BunPluginContext()
-
-  async function transformCode(
+  async function transform(
     code: string,
     id: string,
-    ssr: boolean = false
-  ): Promise<OnLoadResult | undefined> {
-    const { filename, query } = parseVueRequest(id)
-
-    if (query.raw) {
-      return undefined
-    }
-
-    if (!filter(filename) && !query.vue) {
-      return undefined
-    }
-
-    if (!query.vue) {
-      // main request
-      const result = await transformMain(code, filename, options, pluginContext as any, ssr)
-      if (result) {
-        const resultCode = typeof result === 'string' ? result : result.code
-        return {
-          contents: resultCode,
-          loader: 'js'
-        }
+    opt: { ssr?: boolean } | undefined
+  ) {
+    const ssr = opt?.ssr === true
+      const { filename, query } = parseVueRequest(id)
+      if (query.raw) {
+        return
       }
-    } else {
-      // sub block request
-      const descriptor = query.src
-        ? getSrcDescriptor(filename, query)!
-        : getDescriptor(filename, options)!
+      if (!filter(filename) && !query.vue) {
+        // if (
+        //   !query.vue &&
+        //   refTransformFilter(filename) &&
+        //   options.compiler.shouldTransformRef(code)
+        // ) {
+        //   return options.compiler.transformRef(code, {
+        //     filename,
+        //     sourceMap: true
+        //   })
+        // }
+        return
+      }
 
-      if (query.type === 'template') {
-        const templateCode = await transformTemplateAsModule(
-          code,
-          descriptor,
-          options,
-          pluginContext as any,
-          ssr
-        )
-        return {
-          contents: templateCode,
-          loader: 'js'
-        }
-      } else if (query.type === 'style') {
-        const styleResult = await transformStyle(
-          code,
-          descriptor,
-          Number(query.index),
-          options,
-          pluginContext as any,
-          filename
-        )
-        if (styleResult) {
+      if (!query.vue) {
+        // main request
+        return transformMain(code, filename, options, this, ssr)
+      } else {
+        // sub block request
+        const descriptor = query.src
+          ? getSrcDescriptor(filename, query)!
+          : getDescriptor(filename, options)!
+
+        if (query.type === 'template') {
           return {
-            contents: styleResult.code,
-            loader: 'css'
+            code: await transformTemplateAsModule(
+              code,
+              descriptor,
+              options,
+              this,
+              ssr
+            ),
+            map: {
+              mappings: ''
+            }
           }
+        } else if (query.type === 'style') {
+          return transformStyle(
+            code,
+            descriptor,
+            Number(query.index),
+            options,
+            this,
+            filename
+          )
         }
       }
-    }
-
-    return undefined
   }
+
 
   return {
     name: 'bun:vue2',
     setup(build) {
-      // Initialize compiler on build start
-      build.onStart(() => {
-        console.log("Vue2 Plugin: Bundle started!")
-        options.compiler = options.compiler || resolveCompiler(options.root)
-      })
 
-      // Handle Vue component resolution
-      build.onResolve({ filter: /.*/ }, ({ path: id }) => {
+      const transpiler = new Bun.Transpiler();
+
+		  let trackedImports: Record<string, number> = {};
+
+      // ==================== configResolved start ====================
+
+      // options = {
+      //   ...options,
+      //   root: build.config.root,
+      //   isProduction: build.config.isProduction,
+      //   sourceMap: build.config.command === 'build' ? !!build.config.build.sourcemap : true,
+      //   cssDevSourcemap: build.config.css?.devSourcemap ?? false,
+      //   devToolsEnabled: !build.config.isProduction
+      // }
+
+      // if (!build.config.resolve.alias.some(({ find }) => find === 'vue')) {
+      //   build.config.resolve.alias.push({
+      //     find: 'vue',
+      //     replacement: 'vue/dist/vue.runtime.esm.js'
+      //   })
+      // }
+
+      // build.onResolve({ filter: /.*/ }, args => {
+      //   console.log(args.path);
+
+      //   if (args.path === 'vue') {
+      //     return { path: path.join(process.cwd(), 'node_modules', 'vue/dist/vue.runtime.esm.js')}
+      //   }
+      //   return undefined
+      // })
+
+      // ==================== configResolved end ====================
+
+
+      // ==================== configureServer start ====================
+      // configureServer(server) {
+      //   options.devServer = server
+      // },
+
+      // build.config.???
+
+
+      // ==================== configureServer end ======================
+
+      // ==================== buildStart start ====================
+
+      build.onStart(() => {
+        console.log("Bundle started!");
+        options.compiler = options.compiler || resolveCompiler(options.root)
+      });
+
+      // ==================== buildStart end ======================
+
+      // ==================== resolveId start ====================
+
+      build.onResolve({ filter: /.*/, namespace: "file" }, ({ path: id }) => {
+
         // component export helper
         if (id === NORMALIZER_ID || id === HMR_RUNTIME_ID) {
-          return { path: id, namespace: 'vue-helper' }
+          return { path: id }
         }
-
         // serve sub-part requests (*?vue) as virtual modules
-        const { query } = parseVueRequest(id)
-        if (query.vue) {
-          return { path: id, namespace: 'vue-sfc' }
+        if (parseVueRequest(id).query.vue) {
+          return { path: id }
         }
 
-        // Handle .vue files
-        if (id.endsWith('.vue')) {
-          return { path: id, namespace: 'vue-main' }
-        }
+      });
 
-        return undefined
-      })
+      // ==================== resolveId end ======================
 
-      // Load helper modules
-      build.onLoad({ filter: /.*/, namespace: 'vue-helper' }, ({ path: id }) => {
+      build.onLoad({ filter: /.*/, namespace: "file" }, ({ path: id, namespace, loader, defer }) => {
+        // const ssr = opt?.ssr === true
+        const ssr = false
         if (id === NORMALIZER_ID) {
           return { contents: normalizerCode, loader: 'js' }
         }
         if (id === HMR_RUNTIME_ID) {
           return { contents: hmrRuntimeCode, loader: 'js' }
         }
-        return undefined
-      })
-
-      // Load Vue SFC main files
-      build.onLoad({ filter: /\.vue$/, namespace: 'vue-main' }, async ({ path: id }) => {
-        try {
-          const code = await Bun.file(id).text()
-          const result = await transformCode(code, id, false)
-          return result
-        } catch (error) {
-          console.error(`Error loading Vue file ${id}:`, error)
-          throw error
-        }
-      })
-
-      // Load Vue SFC sub-parts (template, style, script blocks)
-      build.onLoad({ filter: /.*/, namespace: 'vue-sfc' }, async ({ path: id }) => {
-        try {
-          const { filename, query } = parseVueRequest(id)
-
+        const { filename, query } = parseVueRequest(id)
+        // select corresponding block for sub-part virtual modules
+        if (query.vue) {
           if (query.src) {
-            // Resolve the src file path relative to the Vue file
-            const srcPath = path.resolve(path.dirname(filename), query.src)
-            const code = await Bun.file(srcPath).text()
-            
-            // Determine loader based on file extension
-            let loader: 'js' | 'ts' | 'css' | 'text' = 'js'
-            if (srcPath.endsWith('.ts')) loader = 'ts'
-            else if (srcPath.endsWith('.css')) loader = 'css'
-            else if (srcPath.endsWith('.html')) loader = 'text'
-            
-            return { contents: code, loader }
+            return { contents: fs.readFileSync(filename, 'utf-8'), loader: 'js' }
           }
-
           const descriptor = getDescriptor(filename, options)!
           let block: SFCBlock | null | undefined
-
           if (query.type === 'script') {
-            // handle <script> + <script setup> merge via compileScript()
-            block = getResolvedScript(descriptor, false)
+            // handle <scrip> + <script setup> merge via compileScript()
+            block = getResolvedScript(descriptor, ssr)
           } else if (query.type === 'template') {
             block = descriptor.template!
           } else if (query.type === 'style') {
@@ -246,41 +247,70 @@ export default function vuePlugin(rawOptions: Options = {}): BunPlugin {
           }
 
           if (block) {
-            // For script blocks, we need to handle TypeScript properly
-            if (query.type === 'script') {
-              const result = await transformCode(block.content, id, false)
-              return result || { contents: block.content, loader: block.lang === 'ts' ? 'ts' : 'js' }
-            } else {
-              // For other blocks, use appropriate loader
-              let loader: 'js' | 'ts' | 'css' | 'text' = 'js'
-              if (query.type === 'style') loader = 'css'
-              else if (query.type === 'template') loader = 'text'
-              
-              return { contents: block.content, loader }
-            }
+            // return {
+            //   code: block.content,
+            //   map: block.map as any
+            // }
+            return { contents: block.content, loader: 'js' }
           }
-
-          return undefined
-        } catch (error) {
-          console.error(`Error loading Vue SFC part ${id}:`, error)
-          throw error
         }
-      })
 
-      // Handle regular .vue files in file namespace
-      build.onLoad({ filter: /\.vue$/, namespace: 'file' }, async ({ path: id }) => {
-        try {
-          const code = await Bun.file(id).text()
-          const result = await transformCode(code, id, false)
-          return result
-        } catch (error) {
-          console.error(`Error loading Vue file ${id}:`, error)
-          throw error
-        }
-      })
 
-      // Note: build.onEnd is not implemented in Bun yet
-      // See: https://github.com/oven-sh/bun/issues/2771
+
+        return undefined
+      });
+
+
+
+
+
+
+      // build.onResolve({ filter: /.*/, namespace: "file" }, args => {
+      //   if (args.path.startsWith("images/")) {
+      //     return {
+      //       path: args.path.replace("images/", "./public/images/"),
+      //     };
+      //   }
+      // });
+
+      // build.onLoad({ filter: /env/, namespace: "file" }, args => {
+      //   return {
+      //     contents: `export default ${JSON.stringify(process.env)}`,
+      //     loader: "js",
+      //   };
+      // });
+
+      // Each module that goes through this onLoad callback
+      // will record its imports in `trackedImports`
+      // build.onLoad({ filter: /\.ts/ }, async ({ path }) => {
+      //   const contents = await Bun.file(path).arrayBuffer();
+
+      //   const imports = transpiler.scanImports(contents);
+
+      //   for (const i of imports) {
+      //     trackedImports[i.path] = (trackedImports[i.path] || 0) + 1;
+      //   }
+
+      //   return undefined;
+      // });
+
+      // build.onLoad({ filter: /stats\.json/ }, async ({ defer }) => {
+      //   // Wait for all files to be loaded, ensuring
+      //   // that every file goes through the above `onLoad()` function
+      //   // and their imports tracked
+      //   await defer();
+
+      //   console.log("Bundle finished!");
+      //   console.log("trackedImports:", trackedImports);
+
+      //   // Emit JSON containing the stats of each import
+      //   return {
+      //     contents: `export default ${JSON.stringify(trackedImports)}`,
+      //     loader: "json",
+      //   };
+      // });
+
     }
   }
+
 }

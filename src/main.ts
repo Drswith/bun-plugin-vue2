@@ -1,6 +1,8 @@
 import path from 'node:path'
 import type { SFCBlock, SFCDescriptor } from 'vue/compiler-sfc'
+import type { PluginContext, TransformPluginContext } from 'rollup'
 import type { RawSourceMap } from 'source-map'
+import { transformWithEsbuild } from 'vite'
 import {
   createDescriptor,
   getPrevDescriptor,
@@ -8,23 +10,20 @@ import {
 } from './utils/descriptorCache'
 import { resolveScript } from './script'
 import { transformTemplateInMain } from './template'
+import { isOnlyTemplateChanged } from './handleHotUpdate'
+import { createRollupError } from './utils/error'
 import type { ResolvedOptions } from '.'
 import { NORMALIZER_ID } from './utils/componentNormalizer'
 import { HMR_RUNTIME_ID } from './utils/hmrRuntime'
-
-// Mock plugin context interface for Bun environment
-interface PluginContext {
-  error(err: any): void
-  warn(warning: any): void
-  resolve?(id: string, importer?: string): Promise<{ id: string } | null>
-}
+import { build } from 'bun'
 
 export async function transformMain(
   code: string,
   filename: string,
   options: ResolvedOptions,
-  pluginContext: PluginContext,
+  pluginContext: TransformPluginContext,
   ssr: boolean
+  // asCustomElement: boolean
 ) {
   const { devServer, isProduction, devToolsEnabled } = options
 
@@ -34,7 +33,7 @@ export async function transformMain(
 
   if (errors.length) {
     errors.forEach(error =>
-      pluginContext.error(createBunError(filename, error))
+      pluginContext.error(createRollupError(filename, error))
     )
     return null
   }
@@ -101,7 +100,7 @@ var __component__ = /*#__PURE__*/__normalizer(
   // HMR
   if (
     devServer &&
-    devServer.config?.server?.hmr !== false &&
+    devServer.config.server.hmr !== false &&
     !ssr &&
     !isProduction
   ) {
@@ -141,26 +140,26 @@ var __component__ = /*#__PURE__*/__normalizer(
 
   output.push(`export default __component__.exports`)
 
-  // handle TS transpilation using Bun's built-in transpiler
+  // handle TS transpilation
   let resolvedCode = output.join('\n')
   if (
     (descriptor.script?.lang === 'ts' ||
       descriptor.scriptSetup?.lang === 'ts') &&
     !descriptor.script?.src // only normal script can have src
   ) {
-    try {
-      // Use Bun's transpiler for TypeScript
-      const transpiler = new Bun.Transpiler({
-        loader: 'ts'
-      })
-      
-      const result = await transpiler.transform(resolvedCode)
-      resolvedCode = result
-      // Note: Bun's transpiler doesn't provide source maps in the same way
-      // We keep the original map for now
-    } catch (error) {
-      console.warn('TypeScript transpilation failed, using original code:', error)
-    }
+    const { code, map } = await transformWithEsbuild(
+      resolvedCode,
+      filename,
+      {
+        loader: 'ts',
+        target: 'esnext',
+        sourcemap: options.sourceMap
+      },
+      resolvedMap
+    )
+
+    resolvedCode = code
+    resolvedMap = resolvedMap ? (map as any) : resolvedMap
   }
 
   return {
@@ -191,7 +190,7 @@ async function genTemplateCode(
   const hasScoped = descriptor.styles.some(style => style.scoped)
 
   // If the template is not using pre-processor AND is not using external src,
-  // compile and inline it directly in the main module. When served in Bun this
+  // compile and inline it directly in the main module. When served in vite this
   // saves an extra request per SFC which can improve load performance.
   if (!template.lang && !template.src) {
     return transformTemplateInMain(
@@ -384,10 +383,9 @@ async function linkSrcToDescriptor(
   pluginContext: PluginContext,
   scoped?: boolean
 ) {
-  const srcFile = pluginContext.resolve 
-    ? (await pluginContext.resolve(src, descriptor.filename))?.id || src
-    : src
-  // if the src points to a dep file, the resolved id may contain a
+  const srcFile =
+    (await pluginContext.resolve(src, descriptor.filename))?.id || src
+  // #1812 if the src points to a dep file, the resolved id may contain a
   // version query.
   setSrcDescriptor(srcFile.replace(/\?.*$/, ''), descriptor, scoped)
 }
@@ -419,55 +417,4 @@ function attrsToQuery(
         : `&lang.${langFallback}`
   }
   return query
-}
-
-// Create Bun-compatible error object
-function createBunError(filename: string, error: any) {
-  return {
-    id: filename,
-    message: error.message || error.msg || String(error),
-    loc: error.loc ? {
-      file: filename,
-      line: error.loc.start?.line || error.line,
-      column: error.loc.start?.column || error.column
-    } : undefined
-  }
-}
-
-// Check if only template changed for HMR optimization
-export function isOnlyTemplateChanged(
-  prev: SFCDescriptor,
-  next: SFCDescriptor
-): boolean {
-  return (
-    !hasScriptChanged(prev, next) &&
-    prev.styles.length === next.styles.length &&
-    prev.styles.every((s, i) => isEqualBlock(s, next.styles[i])) &&
-    prev.customBlocks.length === next.customBlocks.length &&
-    prev.customBlocks.every((s, i) => isEqualBlock(s, next.customBlocks[i]))
-  )
-}
-
-function hasScriptChanged(prev: SFCDescriptor, next: SFCDescriptor): boolean {
-  if (!isEqualBlock(prev.script, next.script)) {
-    return true
-  }
-  if (!isEqualBlock(prev.scriptSetup, next.scriptSetup)) {
-    return true
-  }
-  return false
-}
-
-function isEqualBlock(a: SFCBlock | null, b: SFCBlock | null): boolean {
-  if (!a && !b) return true
-  if (!a || !b) return false
-  // src imports will trigger their own updates
-  if (a.src && b.src && a.src === b.src) return true
-  if (a.content !== b.content) return false
-  const keysA = Object.keys(a.attrs)
-  const keysB = Object.keys(b.attrs)
-  if (keysA.length !== keysB.length) {
-    return false
-  }
-  return keysA.every(key => a.attrs[key] === b.attrs[key])
 }

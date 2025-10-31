@@ -1,29 +1,25 @@
 // @ts-ignore
 import hash from 'hash-sum'
 import type { SFCDescriptor, SFCTemplateCompileOptions } from 'vue/compiler-sfc'
+import type { PluginContext, TransformPluginContext } from 'rollup'
 import { getResolvedScript } from './script'
+import { createRollupError } from './utils/error'
 import type { ResolvedOptions } from '.'
 import path from 'node:path'
 import slash from 'slash'
 import { HMR_RUNTIME_ID } from './utils/hmrRuntime'
 
-// Mock plugin context interface for Bun environment
-interface PluginContext {
-  error(err: any): void
-  warn(warning: any): void
-}
-
 export async function transformTemplateAsModule(
   code: string,
   descriptor: SFCDescriptor,
   options: ResolvedOptions,
-  pluginContext: PluginContext,
+  pluginContext: TransformPluginContext,
   ssr: boolean
 ): Promise<string> {
   let returnCode = compile(code, descriptor, options, pluginContext, ssr)
   if (
     options.devServer &&
-    options.devServer.config?.server?.hmr !== false &&
+    options.devServer.config.server.hmr !== false &&
     !ssr &&
     !options.isProduction
   ) {
@@ -69,7 +65,7 @@ export function compile(
       pluginContext.error(
         typeof error === 'string'
           ? { id: filename, message: error }
-          : createBunError(filename, error)
+          : createRollupError(filename, error)
       )
     )
   }
@@ -110,14 +106,14 @@ function resolveTemplateCompilerOptions(
   const transformAssetUrls = options.template?.transformAssetUrls ?? true
   let assetUrlOptions
   if (options.devServer) {
-    // during dev, inject base so that compiler-sfc can transform
+    // during dev, inject vite base so that compiler-sfc can transform
     // relative paths directly to absolute paths without incurring an extra import
     // request
     if (filename.startsWith(options.root)) {
       assetUrlOptions = {
         base:
-          (options.devServer.config?.server?.origin ?? '') +
-          (options.devServer.config?.base ?? '/') +
+          (options.devServer.config.server?.origin ?? '') +
+          options.devServer.config.base +
           slash(path.relative(options.root, path.dirname(filename)))
       }
     }
@@ -171,17 +167,4 @@ function transformRequireToImport(code: string): string {
   )
 
   return strImports + code
-}
-
-// Create Bun-compatible error object
-function createBunError(filename: string, error: any) {
-  return {
-    id: filename,
-    message: error.message || error.msg || String(error),
-    loc: error.loc ? {
-      file: filename,
-      line: error.loc.start?.line || error.line,
-      column: error.loc.start?.column || error.column
-    } : undefined
-  }
 }
