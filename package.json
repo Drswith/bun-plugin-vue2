@@ -1,0 +1,19 @@
+{
+  "name": "bun-plugin-vue2",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "bun --hot ./src/index.ts",
+    "build": "bun build ./src/index.ts"
+  },
+  "dependencies": {
+  },
+  "devDependencies": {
+    "@types/bun": "latest"
+  },
+  "workspaces": [
+    "playground",
+    "packages/*"
+  ]
+}
