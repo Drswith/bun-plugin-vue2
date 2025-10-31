@@ -1,11 +1,9 @@
-import { APITester } from "./APITester";
-import { User } from "./pages/user";
-import "./index.css";
+
 
 import logo from "./logo.svg";
 import reactLogo from "./react.svg";
 
-export function App() {
+export function User() {
   return (
     <div className="app">
       <div className="logo-container">
@@ -15,13 +13,10 @@ export function App() {
 
       <h1>Bun + React</h1>
       <p>
-        Edit <code>src/App.tsx</code> and save to test HMR
+        Edit <code>src/User.tsx</code> and save to test HMR
       </p>
-      <APITester />
-      <User />
-
     </div>
   );
 }
 
-export default App;
+export default User;
