@@ -7,14 +7,16 @@
     "dev": "bun --hot ./src/index.ts",
     "build": "bun build ./src/index.ts --outdir=dist --sourcemap --target=bun",
     "dev:playground": "cd playground && bun run dev",
-    "build:playground": "cd playground && bun run build"
+    "build:playground": "cd playground && bun run build",
+    "test": "bun test"
   },
   "dependencies": {},
   "devDependencies": {
     "@types/bun": "latest",
     "slash": "^3.0.0",
     "vue": "^2.7.16",
-    "hash-sum": "^2.0.0"
+    "hash-sum": "^2.0.0",
+    "source-map": "^0.6.1"
   },
   "workspaces": [
     "playground",
