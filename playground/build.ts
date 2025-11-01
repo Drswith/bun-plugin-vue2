@@ -1,4 +1,5 @@
 import vuePlugin from '../src/index'
+import vueCustomBlockPlugin from './vue-custom-block-plugin'
 
 async function build() {
   try {
@@ -22,6 +23,7 @@ async function build() {
       // env: "BUN_PUBLIC_*",
       plugins: [
         vuePlugin(),
+        vueCustomBlockPlugin(),
       ],
       // options...
     })

@@ -619,6 +619,13 @@ export default function vuePlugin(rawOptions: Options = {}): BunPlugin {
 
           }
           else if (query.index != null) {
+            // 自定义块处理交给独立的自定义块插件处理
+            // 主插件不再处理 type=custom 的请求，实现解耦
+            if (query.type === 'custom') {
+              console.log('[main plugin] 跳过自定义块处理，交给自定义块插件:', filename, query)
+              return undefined // 让其他插件处理
+            }
+
             block = descriptor.customBlocks[query.index]
             if (block) {
               // console.log(`[custom block] returning block.content`, block.content)
