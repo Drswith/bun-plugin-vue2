@@ -405,7 +405,21 @@ export default function vuePlugin(rawOptions: Options = {}): BunPlugin {
         // serve sub-part requests (*?vue) as virtual modules
         // if (parseVueRequest(id).query.vue) {
         if (/\.vue/.test(id)) {
-          return { path: id, namespace: 'vue-sfc' }
+          // 将相对路径解析为绝对路径
+          let resolvedPath = id
+          if (!path.isAbsolute(id)) {
+            if (importer) {
+              const importerPath = importer.includes('?') ? importer.split('?')[0] : importer
+              const absoluteImporter = path.isAbsolute(importerPath)
+                ? importerPath
+                : path.resolve(options.root, importerPath)
+              const importerDir = path.dirname(absoluteImporter)
+              resolvedPath = path.resolve(importerDir, id)
+            } else {
+              resolvedPath = path.resolve(options.root, id)
+            }
+          }
+          return { path: resolvedPath, namespace: 'vue-sfc' }
         }
 
         // 处理别名 @ -> playground 或 root
@@ -419,7 +433,11 @@ export default function vuePlugin(rawOptions: Options = {}): BunPlugin {
         if (id.startsWith('./') || id.startsWith('../')) {
           if (importer) {
             const importerPath = importer.includes('?') ? importer.split('?')[0] : importer
-            const importerDir = path.dirname(importerPath)
+            // 如果 importer 本身是相对路径，先解析为绝对路径
+            const absoluteImporter = path.isAbsolute(importerPath)
+              ? importerPath
+              : path.resolve(options.root, importerPath)
+            const importerDir = path.dirname(absoluteImporter)
             const resolved = path.resolve(importerDir, id)
             console.log('resolveId: relative path ->', resolved, 'from', importerDir)
 
@@ -508,14 +526,14 @@ export default function vuePlugin(rawOptions: Options = {}): BunPlugin {
             // handle <scrip> + <script setup> merge via compileScript()
             block = getResolvedScript(descriptor, ssr)
             if (block){
-              console.log(`[script block] returning block.content`, block.content)
+              // console.log(`[script block] returning block.content`, block.content)
               return { contents: block.content }
             }
           }
           else if (query.type === 'template') {
             block = descriptor.template!
             if (block) {
-              console.log(`[template block] returning block.content`, block.content)
+              // console.log(`[template block] returning block.content`, block.content)
               const transformed = await transformTemplateAsModule(
                 block.content,
                 descriptor,
@@ -524,7 +542,7 @@ export default function vuePlugin(rawOptions: Options = {}): BunPlugin {
                 ssr
               )
 
-              console.log('[template] transformed', transformed)
+              // console.log('[template] transformed', transformed)
 
               return {
                 contents: transformed
@@ -535,7 +553,7 @@ export default function vuePlugin(rawOptions: Options = {}): BunPlugin {
           else if (query.type === 'style') {
             block = descriptor.styles[query.index!]
             if (block) {
-              console.log(`[style block] returning block.content`, block.content)
+              // console.log(`[style block] returning block.content`, block.content)
               const transformed = await transformStyle(
                 block.content,
                 descriptor,
@@ -545,7 +563,7 @@ export default function vuePlugin(rawOptions: Options = {}): BunPlugin {
                 filename
               )
 
-              console.log('[style] transformed', transformed)
+              // console.log('[style] transformed', transformed)
 
               return {
                 contents: transformed?.code || ''
@@ -556,7 +574,7 @@ export default function vuePlugin(rawOptions: Options = {}): BunPlugin {
           else if (query.index != null) {
             block = descriptor.customBlocks[query.index]
             if (block) {
-              console.log(`[custom block] returning block.content`, block.content)
+              // console.log(`[custom block] returning block.content`, block.content)
               return { contents: block.content }
             }
           }
