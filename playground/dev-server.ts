@@ -8,7 +8,7 @@ async function devServer() {
     const server = serve({
       port: 3000,
       routes: {
-        '/*': app
+        '/': app
       },
       development: process.env.NODE_ENV !== "production" && {
         // Enable browser hot reloading in development

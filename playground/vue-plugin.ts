@@ -1,2 +1,5 @@
 import vuePlugin from '../src/index'
-export default vuePlugin()
+
+const plugin = vuePlugin()
+
+export default plugin
