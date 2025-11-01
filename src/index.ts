@@ -217,7 +217,7 @@ export default function vuePlugin(rawOptions: Options = {}): BunPlugin {
       if (source.startsWith('\0')) {
         return createResolvedId(source)
       }
-      
+
       // 处理绝对路径
       if (path.isAbsolute(source)) {
         const resolved = tryResolveRealFileOrType(source, DEFAULT_EXTENSIONS, false)
@@ -226,7 +226,7 @@ export default function vuePlugin(rawOptions: Options = {}): BunPlugin {
         }
         return null
       }
-      
+
       // 处理相对路径
       if (source.startsWith('.') && importer) {
         const importerDir = path.dirname(importer)
@@ -237,12 +237,12 @@ export default function vuePlugin(rawOptions: Options = {}): BunPlugin {
         }
         return null
       }
-      
+
       // 处理bare imports（裸导入）
       if (bareImportRE.test(source)) {
         return resolveBareImport(source, importer, options)
       }
-      
+
       return null
     },
   }
@@ -251,21 +251,21 @@ export default function vuePlugin(rawOptions: Options = {}): BunPlugin {
    * 解析bare import
    */
   async function resolveBareImport(
-    id: string, 
-    importer?: string, 
+    id: string,
+    importer?: string,
     options?: { custom?: any; isEntry?: boolean; skipSelf?: boolean }
   ): Promise<ResolvedId | null> {
     // 解析包名和子路径
     const match = deepImportRE.exec(id)
     const packageName = match ? match[1] || match[2] : id
     const subpath = match ? id.slice(packageName.length + 1) : ''
-    
+
     // 查找node_modules中的包
     const packageDir = await findPackageDir(packageName, importer)
     if (!packageDir) {
       return null
     }
-    
+
     // 如果有子路径，直接解析
     if (subpath) {
       const subpathResolved = path.resolve(packageDir, subpath)
@@ -275,13 +275,13 @@ export default function vuePlugin(rawOptions: Options = {}): BunPlugin {
       }
       return null
     }
-    
+
     // 解析包入口点
     const packageData = findNearestPackageData(packageDir)
     if (!packageData) {
       return null
     }
-    
+
     const entryPath = resolvePackageEntry(
       id,
       packageData,
@@ -289,11 +289,11 @@ export default function vuePlugin(rawOptions: Options = {}): BunPlugin {
       DEFAULT_EXTENSIONS,
       false
     )
-    
+
     if (entryPath) {
       return createResolvedId(entryPath)
     }
-    
+
     return null
   }
 
@@ -303,24 +303,24 @@ export default function vuePlugin(rawOptions: Options = {}): BunPlugin {
   async function findPackageDir(packageName: string, importer?: string): Promise<string | null> {
     // 从importer开始向上查找node_modules
     let searchDir = importer ? path.dirname(importer) : process.cwd()
-    
+
     while (searchDir !== path.dirname(searchDir)) {
       const nodeModulesDir = path.join(searchDir, 'node_modules')
       const packageDir = path.join(nodeModulesDir, packageName)
-      
+
       if (isDirectory(packageDir)) {
         return packageDir
       }
-      
+
       searchDir = path.dirname(searchDir)
     }
-    
+
     // 最后尝试全局node_modules
     const globalNodeModules = path.join(process.cwd(), 'node_modules', packageName)
     if (isDirectory(globalNodeModules)) {
       return globalNodeModules
     }
-    
+
     return null
   }
 
@@ -390,7 +390,7 @@ export default function vuePlugin(rawOptions: Options = {}): BunPlugin {
       build.onResolve({
         filter: /.*/
         // filter: /\.vue/
-      }, ({ path: id }) => {
+      }, ({ path: id, importer }) => {
         console.log('resolveId: ', id)
 
         // component export helper
@@ -407,6 +407,46 @@ export default function vuePlugin(rawOptions: Options = {}): BunPlugin {
         if (/\.vue/.test(id)) {
           return { path: id, namespace: 'vue-sfc' }
         }
+
+        // 处理别名 @ -> playground 或 root
+        if (id.startsWith('@/') && importer) {
+          const resolved = path.resolve(options.root, id.slice(2))
+          console.log('resolveId: alias @/ ->', resolved)
+          return { path: resolved, external: false }
+        }
+
+        // 处理相对路径的静态资源
+        if (id.startsWith('./') || id.startsWith('../')) {
+          if (importer) {
+            const importerPath = importer.includes('?') ? importer.split('?')[0] : importer
+            const importerDir = path.dirname(importerPath)
+            const resolved = path.resolve(importerDir, id)
+            console.log('resolveId: relative path ->', resolved, 'from', importerDir)
+
+            // 检查文件是否存在
+            if (isFileReadable(resolved)) {
+              return { path: resolved, external: false }
+            }
+          }
+        }
+
+        // 处理绝对路径
+        if (id.startsWith('/') && !id.startsWith('//')) {
+          // 优先检查 public 目录
+          const publicPath = path.join(options.root, 'public', id)
+          if (isFileReadable(publicPath)) {
+            console.log('resolveId: absolute path (public) ->', publicPath)
+            return { path: publicPath, external: false }
+          }
+
+          // 其次检查 root 目录
+          const resolved = path.join(options.root, id)
+          console.log('resolveId: absolute path ->', resolved)
+          if (isFileReadable(resolved)) {
+            return { path: resolved, external: false }
+          }
+        }
+
         return undefined
       });
 
@@ -426,7 +466,7 @@ export default function vuePlugin(rawOptions: Options = {}): BunPlugin {
         const ssr = false
         const { filename, query } = parseVueRequest(path)
         if (query.raw) {
-          return undefined
+          return
         }
         if (!filter(filename) && !query.vue) {
           // if (
@@ -439,7 +479,7 @@ export default function vuePlugin(rawOptions: Options = {}): BunPlugin {
           //     sourceMap: true
           //   })
           // }
-          return undefined
+          return
         }
 
         if (!query.vue) {
@@ -460,7 +500,7 @@ export default function vuePlugin(rawOptions: Options = {}): BunPlugin {
 
           if (query.src) {
             // return fs.readFileSync(filename, 'utf-8')
-            return { contents: await Bun.file(filename).text()}
+            return { contents: await Bun.file(filename).text() }
           }
 
           let block: SFCBlock | null | undefined
