@@ -74,7 +74,7 @@ export interface ResolvedOptions extends Options {
   root: string
   sourceMap: boolean
   cssDevSourcemap: boolean
-  devServer?: any // Simplified type for Bun environment
+  devServer?: any // Simplified type for Bun environment (可选，HMR不再依赖devServer)
   devToolsEnabled?: boolean
 }
 
@@ -103,44 +103,19 @@ export interface ResolvedId extends ModuleOptions {
 
 export interface PluginContext extends MinimalPluginContext {
 	addWatchFile: (id: string) => void;
-	// cache: PluginCache;
-	// /** @deprecated Use `this.emitFile` instead */
-	// emitAsset: EmitAsset;
-	// /** @deprecated Use `this.emitFile` instead */
-	// emitChunk: EmitChunk;
-	// emitFile: EmitFile;
 
+  // Bun插件应该使用console.error和抛出错误，而不是this.error
+  // 保留这些方法是为了向后兼容，但实现已改为使用console
   error: typeof console.error;
-	// error: (err: RollupError | string, pos?: number | { column: number; line: number }) => never;
 
-
-  // /** @deprecated Use `this.getFileName` instead */
-	// getAssetFileName: (assetReferenceId: string) => string;
-	// /** @deprecated Use `this.getFileName` instead */
-	// getChunkFileName: (chunkReferenceId: string) => string;
-	// getFileName: (fileReferenceId: string) => string;
-	// getModuleIds: () => IterableIterator<string>;
-	// getModuleInfo: GetModuleInfo;
-	// getWatchFiles: () => string[];
-	// /** @deprecated Use `this.resolve` instead */
-	// isExternal: IsExternal;
-	// load: (
-	// 	options: { id: string; resolveDependencies?: boolean } & Partial<PartialNull<ModuleOptions>>
-	// ) => Promise<ModuleInfo>;
-	// /** @deprecated Use `this.getModuleIds` instead */
-	// moduleIds: IterableIterator<string>;
-	// parse: (input: string, options?: any) => AcornNode;
 	resolve: (
 		source: string,
 		importer?: string,
 		options?: { custom?: CustomPluginOptions; isEntry?: boolean; skipSelf?: boolean }
 	) => Promise<ResolvedId | null>;
-	// /** @deprecated Use `this.resolve` instead */
-	// resolveId: (source: string, importer?: string) => Promise<string | null>;
-	// setAssetSource: (assetReferenceId: string, source: string | Uint8Array) => void;
 
+  // Bun插件应该使用console.warn，而不是this.warn
   warn: typeof console.warn;
-	// warn: (warning: RollupWarning | string, pos?: number | { column: number; line: number }) => void;
 }
 
 export interface SourceMap {
@@ -500,138 +475,145 @@ export default function vuePlugin(rawOptions: Options = {}): BunPlugin {
       // ==================== resolveId end ======================
 
       build.onLoad({ filter: /.*/,namespace: 'vue-sfc'}, async ({ path }) => {
-        console.log('onLoad', path)
-        const ssr = false
-        const { filename, query } = parseVueRequest(path)
-        if (query.raw) {
-          return
-        }
-        if (!filter(filename) && !query.vue) {
-          // if (
-          //   !query.vue &&
-          //   refTransformFilter(filename) &&
-          //   options.compiler.shouldTransformRef(code)
-          // ) {
-          //   return options.compiler.transformRef(code, {
-          //     filename,
-          //     sourceMap: true
-          //   })
-          // }
-          return
-        }
-
-        if (!query.vue) {
-          // main request
-          // return transformMain(code, filename, options, this, ssr)
-          const rawCode = await Bun.file(path).text();
-          const transformed = await transformMain(rawCode, filename, options, pluginContext, ssr);
-          // console.log('transformed', transformed?.code)
-          await Bun.write(filename+'.js', transformed?.code || rawCode);
-          return { contents: transformed?.code || rawCode }
-        }
-        else {
-          console.log('query.type => ',  query)
-          // sub block request
-          const descriptor = query.src
-            ? getSrcDescriptor(filename, query)!
-            : getDescriptor(filename, options)!
-
-          // 如果是 src 引用且是 script 类型，直接返回文件内容
-          if (query.src && query.type === 'script') {
-            return { contents: await Bun.file(filename).text() }
+        try {
+          console.log('onLoad', path)
+          const ssr = false
+          const { filename, query } = parseVueRequest(path)
+          if (query.raw) {
+            return
+          }
+          if (!filter(filename) && !query.vue) {
+            // if (
+            //   !query.vue &&
+            //   refTransformFilter(filename) &&
+            //   options.compiler.shouldTransformRef(code)
+            // ) {
+            //   return options.compiler.transformRef(code, {
+            //     filename,
+            //     sourceMap: true
+            //   })
+            // }
+            return
           }
 
-          // 如果是 src 引用且是 template 类型，需要编译 template
-          if (query.src && query.type === 'template') {
-            const templateContent = await Bun.file(filename).text()
-            const transformed = await transformTemplateAsModule(
-              templateContent,
-              descriptor,
-              options,
-              pluginContext,
-              ssr
-            )
-            return { contents: transformed }
+          if (!query.vue) {
+            // main request
+            // return transformMain(code, filename, options, this, ssr)
+            const rawCode = await Bun.file(path).text();
+            const transformed = await transformMain(rawCode, filename, options, pluginContext, ssr);
+            // console.log('transformed', transformed?.code)
+            await Bun.write(filename+'.js', transformed?.code || rawCode);
+            return { contents: transformed?.code || rawCode }
           }
+          else {
+            console.log('query.type => ',  query)
+            // sub block request
+            const descriptor = query.src
+              ? getSrcDescriptor(filename, query)!
+              : getDescriptor(filename, options)!
 
-          // 如果是 src 引用且是 style 类型，需要处理样式
-          if (query.src && query.type === 'style') {
-            const styleContent = await Bun.file(filename).text()
-            const transformed = await transformStyle(
-              styleContent,
-              descriptor,
-              Number(query.index),
-              options,
-              pluginContext,
-              filename
-            )
-            return { contents: transformed?.code || '' }
-          }
-
-          let block: SFCBlock | null | undefined
-          if (query.type === 'script') {
-            // handle <scrip> + <script setup> merge via compileScript()
-            block = getResolvedScript(descriptor, ssr)
-            if (block){
-              // console.log(`[script block] returning block.content`, block.content)
-              return { contents: block.content }
+            // 如果是 src 引用且是 script 类型，直接返回文件内容
+            if (query.src && query.type === 'script') {
+              return { contents: await Bun.file(filename).text() }
             }
-          }
-          else if (query.type === 'template') {
-            block = descriptor.template!
-            if (block) {
-              // console.log(`[template block] returning block.content`, block.content)
+
+            // 如果是 src 引用且是 template 类型，需要编译 template
+            if (query.src && query.type === 'template') {
+              const templateContent = await Bun.file(filename).text()
               const transformed = await transformTemplateAsModule(
-                block.content,
+                templateContent,
                 descriptor,
                 options,
                 pluginContext,
                 ssr
               )
-
-              // console.log('[template] transformed', transformed)
-
-              return {
-                contents: transformed
-              }
+              return { contents: transformed }
             }
 
-          }
-          else if (query.type === 'style') {
-            block = descriptor.styles[query.index!]
-            if (block) {
-              // console.log(`[style block] returning block.content`, block.content)
+            // 如果是 src 引用且是 style 类型，需要处理样式
+            if (query.src && query.type === 'style') {
+              const styleContent = await Bun.file(filename).text()
               const transformed = await transformStyle(
-                block.content,
+                styleContent,
                 descriptor,
                 Number(query.index),
                 options,
                 pluginContext,
                 filename
               )
+              return { contents: transformed?.code || '' }
+            }
 
-              // console.log('[style] transformed', transformed)
-
-              return {
-                contents: transformed?.code || ''
+            let block: SFCBlock | null | undefined
+            if (query.type === 'script') {
+              // handle <scrip> + <script setup> merge via compileScript()
+              block = getResolvedScript(descriptor, ssr)
+              if (block){
+                // console.log(`[script block] returning block.content`, block.content)
+                return { contents: block.content }
               }
             }
+            else if (query.type === 'template') {
+              block = descriptor.template!
+              if (block) {
+                // console.log(`[template block] returning block.content`, block.content)
+                const transformed = await transformTemplateAsModule(
+                  block.content,
+                  descriptor,
+                  options,
+                  pluginContext,
+                  ssr
+                )
 
-          }
-          else if (query.index != null) {
-            // 自定义块处理交给独立的自定义块插件处理
-            // 主插件不再处理 type=custom 的请求，实现解耦
-            if (query.type === 'custom') {
-              console.log('[main plugin] 跳过自定义块处理，交给自定义块插件:', filename, query)
-              return undefined // 让其他插件处理
-            }
+                // console.log('[template] transformed', transformed)
 
-            block = descriptor.customBlocks[query.index]
-            if (block) {
-              // console.log(`[custom block] returning block.content`, block.content)
-              return { contents: block.content }
+                return {
+                  contents: transformed
+                }
+              }
+
+            }
+            else if (query.type === 'style') {
+              block = descriptor.styles[query.index!]
+              if (block) {
+                // console.log(`[style block] returning block.content`, block.content)
+                const transformed = await transformStyle(
+                  block.content,
+                  descriptor,
+                  Number(query.index),
+                  options,
+                  pluginContext,
+                  filename
+                )
+
+                // console.log('[style] transformed', transformed)
+
+                return {
+                  contents: transformed?.code || ''
+                }
+              }
+
+            }
+            else if (query.index != null) {
+              // 自定义块处理交给独立的自定义块插件处理
+              // 主插件不再处理 type=custom 的请求，实现解耦
+              if (query.type === 'custom') {
+                console.log('[main plugin] 跳过自定义块处理，交给自定义块插件:', filename, query)
+                return undefined // 让其他插件处理
+              }
+
+              block = descriptor.customBlocks[query.index]
+              if (block) {
+                // console.log(`[custom block] returning block.content`, block.content)
+                return { contents: block.content }
+              }
             }
           }
+        } catch (error) {
+          // Bun插件错误处理：记录并重新抛出错误
+          console.error(`[bun:vue2] Error processing ${path}:`, error)
+          // 重新抛出错误让Bun运行时处理
+          throw error
         }
       });
 

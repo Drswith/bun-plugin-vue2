@@ -10,8 +10,8 @@ import {
 } from './utils/descriptorCache'
 import { resolveScript } from './script'
 import { transformTemplateInMain } from './template'
-import { isOnlyTemplateChanged } from './handleHotUpdate'
-import { createRollupError } from './utils/error'
+import { isOnlyTemplateChanged, needsReload } from './handleHotUpdate'
+import { throwBunPluginError } from './utils/error'
 import type { ResolvedOptions } from '.'
 import { NORMALIZER_ID } from './utils/componentNormalizer'
 import { HMR_RUNTIME_ID } from './utils/hmrRuntime'
@@ -22,19 +22,24 @@ export async function transformMain(
   options: ResolvedOptions,
   pluginContext: TransformPluginContext,
   ssr: boolean
-  // asCustomElement: boolean
 ) {
-  const { devServer, isProduction, devToolsEnabled } = options
+  const { isProduction, devToolsEnabled } = options
 
   // prev descriptor is only set and used for hmr
   const prevDescriptor = getPrevDescriptor(filename)
   const { descriptor, errors } = createDescriptor(filename, code, options)
 
   if (errors.length) {
-    errors.forEach(error =>
-      pluginContext.error(createRollupError(filename, error))
-    )
-    return null
+    // 在Bun中，我们应该抛出第一个错误，让Bun运行时处理
+    // 如果需要显示所有错误，可以在抛出前记录它们
+    if (errors.length > 1) {
+      console.error(`[bun:vue2] Found ${errors.length} errors in ${filename}:`)
+      errors.forEach((error, index) => {
+        console.error(`  Error ${index + 1}:`, error)
+      })
+    }
+    // 抛出第一个错误
+    throwBunPluginError(filename, errors[0])
   }
 
   // feature information
@@ -80,14 +85,14 @@ var __component__ = /*#__PURE__*/__normalizer(
   _sfc_render,
   _sfc_staticRenderFns,
   ${hasFunctional ? 'true' : 'false'},
-  ${hasCssModules ? `_sfc_injectStyles` : `null`},
+  ${hasCssModules ? '_sfc_injectStyles' : 'null'},
   ${hasScoped ? JSON.stringify(descriptor.id) : 'null'},
   null,
   null
 )`
   )
 
-  if (devToolsEnabled || (devServer && !isProduction)) {
+  if (devToolsEnabled || !isProduction) {
     // expose filename during serve for devtools to pickup
     output.push(
       `__component__.options.__file = ${JSON.stringify(
@@ -96,37 +101,48 @@ var __component__ = /*#__PURE__*/__normalizer(
     )
   }
 
-  // HMR
-  if (
-    devServer &&
-    devServer.config.server.hmr !== false &&
-    !ssr &&
-    !isProduction
-  ) {
+  // HMR - Bun.js使用import.meta.hot API（兼容Vite）
+  // 在开发环境下且非SSR时启用HMR
+  if (!ssr && !isProduction) {
     const id = JSON.stringify(descriptor.id)
     output.push(
+      `/* HMR */`,
       `import __VUE_HMR_RUNTIME__ from "${HMR_RUNTIME_ID}"`,
-      `if (!__VUE_HMR_RUNTIME__.isRecorded(${id})) {`,
-      `  __VUE_HMR_RUNTIME__.createRecord(${id}, __component__.options)`,
+      `const __componentId = ${id}`,
+      ``,
+      `// 初始化HMR runtime`,
+      `if (!__VUE_HMR_RUNTIME__.isRecorded(__componentId)) {`,
+      `  __VUE_HMR_RUNTIME__.createRecord(__componentId, __component__.options)`,
       `}`
     )
-    // check if the template is the only thing that changed
-    if (
+
+    // 判断是否只需要rerender
+    const onlyTemplateChanged =
       hasFunctional ||
       (prevDescriptor && isOnlyTemplateChanged(prevDescriptor, descriptor))
-    ) {
+
+    if (onlyTemplateChanged) {
       output.push(`export const _rerender_only = true`)
     }
+
+    // 生成HMR accept逻辑
     output.push(
-      `import.meta.hot.accept(mod => {`,
-      `  if (!mod) return`,
-      `  const { default: updated, _rerender_only } = mod`,
-      `  if (_rerender_only) {`,
-      `    __VUE_HMR_RUNTIME__.rerender(${id}, updated)`,
-      `  } else {`,
-      `    __VUE_HMR_RUNTIME__.reload(${id}, updated)`,
-      `  }`,
-      `})`
+      ``,
+      `// Bun的import.meta.hot API与Vite兼容`,
+      `if (import.meta.hot) {`,
+      `  import.meta.hot.accept(mod => {`,
+      `    if (!mod) return`,
+      `    const { default: updated, _rerender_only } = mod`,
+      `    console.log('[HMR] Vue component hot update:', __componentId, { _rerender_only })`,
+      `    if (_rerender_only) {`,
+      `      console.log('[HMR] Template-only change detected, rerendering...')`,
+      `      __VUE_HMR_RUNTIME__.rerender(__componentId, updated)`,
+      `    } else {`,
+      `      console.log('[HMR] Full component reload...')`,
+      `      __VUE_HMR_RUNTIME__.reload(__componentId, updated)`,
+      `    }`,
+      `  })`,
+      `}`
     )
   }
 

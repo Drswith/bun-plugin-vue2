@@ -1,6 +1,7 @@
 import type { SFCDescriptor } from 'vue/compiler-sfc'
 import type { ExistingRawSourceMap, TransformPluginContext } from '.'
 import type { RawSourceMap } from 'source-map'
+import { throwBunPluginError } from './utils/error'
 // import { formatPostcssSourceMap } from 'vite'
 import type { ResolvedOptions } from '.'
 
@@ -42,17 +43,34 @@ export async function transformStyle(
   })
 
   if (result.errors.length) {
-    result.errors.forEach((error: any) => {
-      if (error.line && error.column) {
-        error.loc = {
-          file: descriptor.filename,
-          line: error.line + getLine(descriptor.source, block.start),
-          column: error.column
-        }
+    // Bun插件错误处理：记录所有错误后抛出第一个
+    if (result.errors.length > 1) {
+      console.error(`[bun:vue2] Found ${result.errors.length} style errors in ${filename}:`)
+      result.errors.forEach((error, index) => {
+        console.error(`  Error ${index + 1}:`, error)
+      })
+    }
+
+    const firstError: any = result.errors[0]
+    // 添加位置信息
+    if (firstError.line && firstError.column) {
+      const errorWithLoc = new Error(firstError.message || String(firstError))
+      errorWithLoc.name = 'VueStyleError'
+      ;(errorWithLoc as any).position = {
+        file: descriptor.filename,
+        line: firstError.line + getLine(descriptor.source, block.start),
+        column: firstError.column
       }
-      pluginContext.error(error)
-    })
-    return null
+      console.error(`[bun:vue2] Style compilation error at ${descriptor.filename}:${(errorWithLoc as any).position.line}:${(errorWithLoc as any).position.column}`)
+      throw errorWithLoc
+    }
+
+    // 如果没有位置信息，直接抛出
+    if (firstError instanceof Error) {
+      throwBunPluginError(filename, firstError)
+    } else {
+      throw new Error(`[bun:vue2] Style compilation error in ${filename}:\n  ${String(firstError)}`)
+    }
   }
 
   const map = result.map

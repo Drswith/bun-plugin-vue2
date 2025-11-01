@@ -3,7 +3,7 @@ import hash from 'hash-sum'
 import type { SFCDescriptor, SFCTemplateCompileOptions } from 'vue/compiler-sfc'
 import type { PluginContext, TransformPluginContext } from '.'
 import { getResolvedScript } from './script'
-import { createRollupError } from './utils/error'
+import { throwBunPluginError, logBunWarning } from './utils/error'
 import type { ResolvedOptions } from '.'
 import path from 'node:path'
 import slash from 'slash'
@@ -61,22 +61,28 @@ export function compile(
   })
 
   if (result.errors.length) {
-    result.errors.forEach((error) =>
-      pluginContext.error(
-        typeof error === 'string'
-          ? { id: filename, message: error }
-          : createRollupError(filename, error)
-      )
-    )
+    // Bun插件错误处理：记录所有错误后抛出第一个
+    if (result.errors.length > 1) {
+      console.error(`[bun:vue2] Found ${result.errors.length} template errors in ${filename}:`)
+      result.errors.forEach((error, index) => {
+        console.error(`  Error ${index + 1}:`, error)
+      })
+    }
+
+    const firstError = result.errors[0]
+    if (typeof firstError === 'string') {
+      throw new Error(`[bun:vue2] Template compilation error in ${filename}:\n  ${firstError}`)
+    } else {
+      throwBunPluginError(filename, firstError)
+    }
   }
 
   if (result.tips.length) {
-    result.tips.forEach((tip) =>
-      pluginContext.warn({
-        id: filename,
-        message: typeof tip === 'string' ? tip : tip.msg
-      })
-    )
+    // Bun中使用console.warn输出警告
+    result.tips.forEach((tip) => {
+      const message = typeof tip === 'string' ? tip : tip.msg
+      logBunWarning(filename, message)
+    })
   }
 
   return transformRequireToImport(result.code)
