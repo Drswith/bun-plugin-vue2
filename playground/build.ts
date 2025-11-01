@@ -12,6 +12,7 @@ async function build() {
       outdir: "dist",
       sourcemap: true,
       publicPath: "/",
+      splitting: true,  // 启用代码分割，支持动态 import
       // target: "browser",
       // // minify: true,
       // minify: false,
