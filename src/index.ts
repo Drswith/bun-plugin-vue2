@@ -403,11 +403,12 @@ export default function vuePlugin(rawOptions: Options = {}): BunPlugin {
           return { path: HMR_RUNTIME_ID, namespace: 'vue-sfc-helper' }
         }
         // serve sub-part requests (*?vue) as virtual modules
-        // if (parseVueRequest(id).query.vue) {
-        if (/\.vue/.test(id)) {
+        // 检查文件是否为 .vue 文件（包括带查询参数的）
+        const cleanPath = id.split('?')[0]
+        if (cleanPath.endsWith('.vue')) {
           // 将相对路径解析为绝对路径
           let resolvedPath = id
-          if (!path.isAbsolute(id)) {
+          if (!path.isAbsolute(cleanPath)) {
             if (importer) {
               const importerPath = importer.includes('?') ? importer.split('?')[0] : importer
               const absoluteImporter = path.isAbsolute(importerPath)
@@ -420,6 +421,25 @@ export default function vuePlugin(rawOptions: Options = {}): BunPlugin {
             }
           }
           return { path: resolvedPath, namespace: 'vue-sfc' }
+        }
+
+        // 处理带 ?vue 查询参数的非 .vue 文件（如 src 属性引用）
+        if (id.includes('?vue&')) {
+          // 解析相对路径
+          if (!path.isAbsolute(cleanPath)) {
+            if (importer) {
+              const importerPath = importer.includes('?') ? importer.split('?')[0] : importer
+              const absoluteImporter = path.isAbsolute(importerPath)
+                ? importerPath
+                : path.resolve(options.root, importerPath)
+              const importerDir = path.dirname(absoluteImporter)
+              const resolved = path.resolve(importerDir, id)
+              // 返回到 vue-sfc 命名空间处理
+              return { path: resolved, namespace: 'vue-sfc' }
+            }
+          } else {
+            return { path: id, namespace: 'vue-sfc' }
+          }
         }
 
         // 处理别名 @ -> playground 或 root
@@ -516,9 +536,36 @@ export default function vuePlugin(rawOptions: Options = {}): BunPlugin {
             ? getSrcDescriptor(filename, query)!
             : getDescriptor(filename, options)!
 
-          if (query.src) {
-            // return fs.readFileSync(filename, 'utf-8')
+          // 如果是 src 引用且是 script 类型，直接返回文件内容
+          if (query.src && query.type === 'script') {
             return { contents: await Bun.file(filename).text() }
+          }
+
+          // 如果是 src 引用且是 template 类型，需要编译 template
+          if (query.src && query.type === 'template') {
+            const templateContent = await Bun.file(filename).text()
+            const transformed = await transformTemplateAsModule(
+              templateContent,
+              descriptor,
+              options,
+              pluginContext,
+              ssr
+            )
+            return { contents: transformed }
+          }
+
+          // 如果是 src 引用且是 style 类型，需要处理样式
+          if (query.src && query.type === 'style') {
+            const styleContent = await Bun.file(filename).text()
+            const transformed = await transformStyle(
+              styleContent,
+              descriptor,
+              Number(query.index),
+              options,
+              pluginContext,
+              filename
+            )
+            return { contents: transformed?.code || '' }
           }
 
           let block: SFCBlock | null | undefined
