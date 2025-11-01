@@ -15,9 +15,9 @@ import TestCssVBind from './css/TestCssVBind.vue'
 
 <template>
   <div>
-    <h1>Vite-Plugin-Vue2 Playground</h1>
+    <h1>Bun-Plugin-Vue2 Playground</h1>
     <ScriptSetup msg="prop from parent" />
-    <!-- <TestMultiplySrcImport /> -->
+    <TestMultiplySrcImport />
     <TestBlockSrcImport />
     <TestScopedCss />
     <TestCssModules />
