@@ -23,7 +23,7 @@ async function build() {
       // env: "BUN_PUBLIC_*",
       plugins: [
         vuePlugin(),
-        vueCustomBlockPlugin(),
+        vueCustomBlockPlugin,
       ],
       // options...
     })

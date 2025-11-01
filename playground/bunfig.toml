@@ -1,3 +1,7 @@
+
 [serve.static]
+
+plugins = ["./vue-plugin.ts", "./vue-custom-block-plugin.ts"]
+
 env = "BUN_PUBLIC_*"
-preload = ["./vue-plugin.ts", "./vue-custom-block-plugin.ts"]
+
