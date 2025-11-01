@@ -1,4 +1,5 @@
 import vuePlugin from '../src/index'
+import vueCustomBlockPlugin from './vue-custom-block-plugin';
 
 async function build() {
   try {
@@ -13,16 +14,22 @@ async function build() {
       sourcemap: true,
       publicPath: "/",
       splitting: true,  // 启用代码分割，支持动态 import
-      // target: "browser",
-      // // minify: true,
-      // minify: false,
-      // define: {
-      //   'process.env.NODE_ENV': JSON.stringify('production'),
-      // },
-      // env: "BUN_PUBLIC_*",
+      target: "browser",
+      // minify: true,
+      minify: false,
+      define: {
+        'process.env.NODE_ENV': JSON.stringify('production'),
+      },
+      env: "BUN_PUBLIC_*",
       plugins: [
         vuePlugin(),
+        vueCustomBlockPlugin,
       ],
+      //  naming: {
+      //   entry: '[dir]/[name].[ext]',
+      //   chunk: 'assets/[name]-[hash].[ext]',
+      //   asset: 'assets/[name]-[hash].[ext]',
+      // },
       // options...
     })
 
