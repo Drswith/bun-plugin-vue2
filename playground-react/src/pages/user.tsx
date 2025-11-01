@@ -2,6 +2,7 @@
 
 import logo from "./logo.svg";
 import reactLogo from "./react.svg";
+import vueLogo from "./testAssets.png";
 
 export function User() {
   return (
@@ -9,6 +10,7 @@ export function User() {
       <div className="logo-container">
         <img src={logo} alt="Bun Logo" className="logo bun-logo" />
         <img src={reactLogo} alt="React Logo" className="logo react-logo" />
+        <img src={vueLogo} alt="Vue Logo" className="logo vue-logo" />
       </div>
 
       <h1>Bun + React</h1>
