@@ -1,5 +1,5 @@
-export const NORMALIZER_MODULE_ID = 'plugin-vue2:normalizer'
-export const NORMALIZER_ID = '\0' + NORMALIZER_MODULE_ID
+export const NORMALIZER_MODULE_ID = 'plugin-vue2:normalizer';
+export const NORMALIZER_ID = '\0' + NORMALIZER_MODULE_ID;
 
 // IMPORTANT: Do NOT use ES2015 features in this file (except for modules).
 // This module is a runtime utility for cleaner component module output and will
@@ -96,4 +96,4 @@ export default function normalizeComponent (
     exports: scriptExports,
     options: options
   }
-}`
+}`;

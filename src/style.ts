@@ -1,14 +1,20 @@
-import type { SFCDescriptor } from 'vue/compiler-sfc'
-import type { ExistingRawSourceMap, TransformPluginContext } from '.'
-import type { RawSourceMap } from 'source-map'
-import { throwBunPluginError } from './utils/error'
+import type { RawSourceMap } from 'source-map';
+import type { SFCDescriptor } from 'vue/compiler-sfc';
 // import { formatPostcssSourceMap } from 'vite'
-import type { ResolvedOptions } from '.'
+import type {
+  ExistingRawSourceMap,
+  ResolvedOptions,
+  TransformPluginContext,
+} from '.';
+import { throwBunPluginError } from './utils/error';
 
-function formatPostcssSourceMap(rawMap: ExistingRawSourceMap, file: string): Promise<ExistingRawSourceMap>{
+function formatPostcssSourceMap(
+  rawMap: ExistingRawSourceMap,
+  file: string,
+): Promise<ExistingRawSourceMap> {
   return new Promise((resolve) => {
-    resolve(rawMap)
-  })
+    resolve(rawMap);
+  });
 }
 
 export async function transformStyle(
@@ -17,9 +23,9 @@ export async function transformStyle(
   index: number,
   options: ResolvedOptions,
   pluginContext: TransformPluginContext,
-  filename: string
+  filename: string,
 ) {
-  const block = descriptor.styles[index]
+  const block = descriptor.styles[index];
   // vite already handles pre-processors and CSS module so this is only
   // applying SFC-specific transforms like scoped mode and CSS vars rewrite (v-bind(var))
   const result = await options.compiler.compileStyleAsync({
@@ -35,41 +41,47 @@ export async function transformStyle(
             map: {
               from: filename,
               inline: false,
-              annotation: false
-            }
-          }
+              annotation: false,
+            },
+          },
         }
-      : {})
-  })
+      : {}),
+  });
 
   if (result.errors.length) {
     // Bun插件错误处理：记录所有错误后抛出第一个
     if (result.errors.length > 1) {
-      console.error(`[bun:vue2] Found ${result.errors.length} style errors in ${filename}:`)
+      console.error(
+        `[bun:vue2] Found ${result.errors.length} style errors in ${filename}:`,
+      );
       result.errors.forEach((error, index) => {
-        console.error(`  Error ${index + 1}:`, error)
-      })
+        console.error(`  Error ${index + 1}:`, error);
+      });
     }
 
-    const firstError: any = result.errors[0]
+    const firstError: any = result.errors[0];
     // 添加位置信息
     if (firstError.line && firstError.column) {
-      const errorWithLoc = new Error(firstError.message || String(firstError))
-      errorWithLoc.name = 'VueStyleError'
-      ;(errorWithLoc as any).position = {
+      const errorWithLoc = new Error(firstError.message || String(firstError));
+      errorWithLoc.name = 'VueStyleError';
+      (errorWithLoc as any).position = {
         file: descriptor.filename,
         line: firstError.line + getLine(descriptor.source, block.start),
-        column: firstError.column
-      }
-      console.error(`[bun:vue2] Style compilation error at ${descriptor.filename}:${(errorWithLoc as any).position.line}:${(errorWithLoc as any).position.column}`)
-      throw errorWithLoc
+        column: firstError.column,
+      };
+      console.error(
+        `[bun:vue2] Style compilation error at ${descriptor.filename}:${(errorWithLoc as any).position.line}:${(errorWithLoc as any).position.column}`,
+      );
+      throw errorWithLoc;
     }
 
     // 如果没有位置信息，直接抛出
     if (firstError instanceof Error) {
-      throwBunPluginError(filename, firstError)
+      throwBunPluginError(filename, firstError);
     } else {
-      throw new Error(`[bun:vue2] Style compilation error in ${filename}:\n  ${String(firstError)}`)
+      throw new Error(
+        `[bun:vue2] Style compilation error in ${filename}:\n  ${String(firstError)}`,
+      );
     }
   }
 
@@ -78,23 +90,23 @@ export async function transformStyle(
         // version property of result.map is declared as string
         // but actually it is a number
         result.map as Omit<RawSourceMap, 'version'> as ExistingRawSourceMap,
-        filename
+        filename,
       )
-    : ({ mappings: '' } as any)
+    : ({ mappings: '' } as any);
 
   return {
     code: result.code,
-    map: map
-  }
+    map: map,
+  };
 }
 
 function getLine(source: string, start: number) {
-  const lines = source.split(/\r?\n/g)
-  let cur = 0
+  const lines = source.split(/\r?\n/g);
+  let cur = 0;
   for (let i = 0; i < lines.length; i++) {
-    cur += lines[i].length
+    cur += lines[i].length;
     if (cur >= start) {
-      return i
+      return i;
     }
   }
 }

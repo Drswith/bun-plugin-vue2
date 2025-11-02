@@ -1,50 +1,57 @@
-import fs from 'node:fs'
-import path from 'node:path'
-import type { BunPlugin } from 'bun'
-import process from 'node:process'
+import fs from 'node:fs';
+import path from 'node:path';
+import process from 'node:process';
+import type { BunPlugin } from 'bun';
+import type * as _compiler from 'vue/compiler-sfc';
 import type {
   SFCBlock,
   SFCScriptCompileOptions,
   SFCStyleCompileOptions,
-  SFCTemplateCompileOptions
-} from 'vue/compiler-sfc'
-import type * as _compiler from 'vue/compiler-sfc'
-import { resolveCompiler } from './compiler'
-import { parseVueRequest } from './utils/query'
-import { createFilter } from './utils/filter'
-import { getDescriptor, getSrcDescriptor } from './utils/descriptorCache'
-import { getResolvedScript } from './script'
-import { transformMain } from './main'
-import { transformTemplateAsModule } from './template'
-import { transformStyle } from './style'
-import { NORMALIZER_MODULE_ID, NORMALIZER_ID, normalizerCode } from './utils/componentNormalizer'
-import { HMR_RUNTIME_MODULE_ID, HMR_RUNTIME_ID, hmrRuntimeCode } from './utils/hmrRuntime'
+  SFCTemplateCompileOptions,
+} from 'vue/compiler-sfc';
+import { resolveCompiler } from './compiler';
+import { transformMain } from './main';
+import { getResolvedScript } from './script';
+import { transformStyle } from './style';
+import { transformTemplateAsModule } from './template';
 import {
-  normalizePath,
-  tryStatSync,
-  isFileReadable,
-  isDirectory,
-  tryResolveRealFile,
-  tryResolveRealFileWithExtensions,
-  tryResolveRealFileOrType,
-  isInNodeModules,
-  findNearestPackageData,
-  resolvePackageEntry,
-  createResolvedId,
+  NORMALIZER_ID,
+  NORMALIZER_MODULE_ID,
+  normalizerCode,
+} from './utils/componentNormalizer';
+import { getDescriptor, getSrcDescriptor } from './utils/descriptorCache';
+import { createFilter } from './utils/filter';
+import {
+  HMR_RUNTIME_ID,
+  HMR_RUNTIME_MODULE_ID,
+  hmrRuntimeCode,
+} from './utils/hmrRuntime';
+import { parseVueRequest } from './utils/query';
+import {
   bareImportRE,
-  deepImportRE,
+  createResolvedId,
   DEFAULT_EXTENSIONS,
-  DEFAULT_MAIN_FIELDS
-} from './utils/resolve'
+  DEFAULT_MAIN_FIELDS,
+  deepImportRE,
+  findNearestPackageData,
+  isDirectory,
+  isFileReadable,
+  isInNodeModules,
+  normalizePath,
+  resolvePackageEntry,
+  tryResolveRealFile,
+  tryResolveRealFileOrType,
+  tryResolveRealFileWithExtensions,
+  tryStatSync,
+} from './utils/resolve';
 
-
-export { parseVueRequest } from './utils/query'
-export type { VueQuery } from './utils/query'
+export type { VueQuery } from './utils/query';
+export { parseVueRequest } from './utils/query';
 
 /**
  * 日志等级
  */
-export type LogLevel = 'debug' | 'info' | 'warn' | 'error' | 'silent'
+export type LogLevel = 'debug' | 'info' | 'warn' | 'error' | 'silent';
 
 /**
  * 日志等级优先级
@@ -54,62 +61,62 @@ const LOG_LEVEL_PRIORITY: Record<LogLevel, number> = {
   info: 1,
   warn: 2,
   error: 3,
-  silent: 4
-}
+  silent: 4,
+};
 
 /**
  * 日志工具类
  */
 class Logger {
-  private level: LogLevel
-  private prefix: string
+  private level: LogLevel;
+  private prefix: string;
 
   constructor(level: LogLevel = 'info', prefix: string = '[bun:vue2]') {
-    this.level = level
-    this.prefix = prefix
+    this.level = level;
+    this.prefix = prefix;
   }
 
   setLevel(level: LogLevel) {
-    this.level = level
+    this.level = level;
   }
 
   private shouldLog(level: LogLevel): boolean {
-    return LOG_LEVEL_PRIORITY[level] >= LOG_LEVEL_PRIORITY[this.level]
+    return LOG_LEVEL_PRIORITY[level] >= LOG_LEVEL_PRIORITY[this.level];
   }
 
   debug(...args: any[]) {
     if (this.shouldLog('debug')) {
-      console.log(this.prefix, '[DEBUG]', ...args)
+      console.log(this.prefix, '[DEBUG]', ...args);
     }
   }
 
   info(...args: any[]) {
     if (this.shouldLog('info')) {
-      console.info(this.prefix, '[INFO]', ...args)
+      console.info(this.prefix, '[INFO]', ...args);
     }
   }
 
   warn(...args: any[]) {
     if (this.shouldLog('warn')) {
-      console.warn(this.prefix, '[WARN]', ...args)
+      console.warn(this.prefix, '[WARN]', ...args);
     }
   }
 
   error(...args: any[]) {
     if (this.shouldLog('error')) {
-      console.error(this.prefix, '[ERROR]', ...args)
+      console.error(this.prefix, '[ERROR]', ...args);
     }
   }
 }
 
 export interface Options {
-  include?: string | RegExp | (string | RegExp)[]
-  exclude?: string | RegExp | (string | RegExp)[]
+  include?: string | RegExp | (string | RegExp)[];
+  exclude?: string | RegExp | (string | RegExp)[];
 
-  isProduction?: boolean
+  isProduction?: boolean;
 
   // options to pass on to vue/compiler-sfc
-  script?: Partial<Pick<SFCScriptCompileOptions, 'babelParserPlugins'>>
+  script?: Partial<Pick<SFCScriptCompileOptions, 'babelParserPlugins'>>;
   template?: Partial<
     Pick<
       SFCTemplateCompileOptions,
@@ -120,12 +127,12 @@ export interface Options {
       | 'transformAssetUrls'
       | 'transformAssetUrlsOptions'
     >
-  >
-  style?: Partial<Pick<SFCStyleCompileOptions, 'trim'>>
+  >;
+  style?: Partial<Pick<SFCStyleCompileOptions, 'trim'>>;
 
   // customElement?: boolean | string | RegExp | (string | RegExp)[]
   // reactivityTransform?: boolean | string | RegExp | (string | RegExp)[]
-  compiler?: typeof _compiler
+  compiler?: typeof _compiler;
 
   /**
    * 日志等级配置
@@ -136,99 +143,103 @@ export interface Options {
    * - 'silent': 不输出任何日志
    * @default 'info' (生产环境) | 'debug' (开发环境)
    */
-  logLevel?: LogLevel
+  logLevel?: LogLevel;
 }
 
 export interface ResolvedOptions extends Options {
-  compiler: typeof _compiler
-  root: string
-  sourceMap: boolean
-  cssDevSourcemap: boolean
-  devServer?: any // Simplified type for Bun environment (可选，HMR不再依赖devServer)
-  devToolsEnabled?: boolean
+  compiler: typeof _compiler;
+  root: string;
+  sourceMap: boolean;
+  cssDevSourcemap: boolean;
+  devServer?: any; // Simplified type for Bun environment (可选，HMR不再依赖devServer)
+  devToolsEnabled?: boolean;
 }
 
 export interface PluginContextMeta {
-	rollupVersion: string;
-	watchMode: boolean;
+  rollupVersion: string;
+  watchMode: boolean;
 }
 
 export interface MinimalPluginContext {
-	meta: PluginContextMeta;
+  meta: PluginContextMeta;
 }
 export interface CustomPluginOptions {
-	[plugin: string]: any;
+  [plugin: string]: any;
 }
 
 interface ModuleOptions {
-	meta: CustomPluginOptions;
-	moduleSideEffects: boolean | 'no-treeshake';
-	syntheticNamedExports: boolean | string;
+  meta: CustomPluginOptions;
+  moduleSideEffects: boolean | 'no-treeshake';
+  syntheticNamedExports: boolean | string;
 }
 
 export interface ResolvedId extends ModuleOptions {
-	external: boolean | 'absolute';
-	id: string;
+  external: boolean | 'absolute';
+  id: string;
 }
 
 export interface PluginContext extends MinimalPluginContext {
-	addWatchFile: (id: string) => void;
+  addWatchFile: (id: string) => void;
 
   // Bun插件应该使用console.error和抛出错误，而不是this.error
   // 保留这些方法是为了向后兼容，但实现已改为使用console
   error: typeof console.error;
 
-	resolve: (
-		source: string,
-		importer?: string,
-		options?: { custom?: CustomPluginOptions; isEntry?: boolean; skipSelf?: boolean }
-	) => Promise<ResolvedId | null>;
+  resolve: (
+    source: string,
+    importer?: string,
+    options?: {
+      custom?: CustomPluginOptions;
+      isEntry?: boolean;
+      skipSelf?: boolean;
+    },
+  ) => Promise<ResolvedId | null>;
 
   // Bun插件应该使用console.warn，而不是this.warn
   warn: typeof console.warn;
 }
 
 export interface SourceMap {
-	file: string;
-	mappings: string;
-	names: string[];
-	sources: string[];
-	sourcesContent: string[];
-	version: number;
-	toString(): string;
-	toUrl(): string;
+  file: string;
+  mappings: string;
+  names: string[];
+  sources: string[];
+  sourcesContent: string[];
+  version: number;
+  toString(): string;
+  toUrl(): string;
 }
 export interface TransformPluginContext extends PluginContext {
-	getCombinedSourcemap: () => SourceMap;
+  getCombinedSourcemap: () => SourceMap;
 }
 
 export interface ExistingRawSourceMap {
-	file?: string;
-	mappings: string;
-	names: string[];
-	sourceRoot?: string;
-	sources: string[];
-	sourcesContent?: string[];
-	version: number;
+  file?: string;
+  mappings: string;
+  names: string[];
+  sourceRoot?: string;
+  sources: string[];
+  sourcesContent?: string[];
+  version: number;
 }
 
 export default function vuePlugin(rawOptions: Options = {}): BunPlugin {
-
   const {
     include = /\.vue$/,
     exclude,
-    logLevel
+    logLevel,
     // customElement = /\.ce\.vue$/,
     // reactivityTransform = false
-  } = rawOptions
+  } = rawOptions;
 
-  const filter = createFilter(include, exclude)
+  const filter = createFilter(include, exclude);
 
   // 初始化日志工具，默认开发环境使用 debug，生产环境使用 info
-  const defaultLogLevel = process.env.NODE_ENV === 'production' ? 'silent' : 'info'
-  const logger = new Logger(logLevel || defaultLogLevel)
+  const defaultLogLevel =
+    process.env.NODE_ENV === 'production' ? 'silent' : 'info';
+  const logger = new Logger(logLevel || defaultLogLevel);
 
-  let options: ResolvedOptions = {
+  const options: ResolvedOptions = {
     isProduction: process.env.NODE_ENV === 'production',
     compiler: null as any, // to be set in buildStart
     ...rawOptions,
@@ -239,13 +250,13 @@ export default function vuePlugin(rawOptions: Options = {}): BunPlugin {
     root: process.cwd(),
     sourceMap: true,
     cssDevSourcemap: false,
-    devToolsEnabled: process.env.NODE_ENV !== 'production'
-  }
+    devToolsEnabled: process.env.NODE_ENV !== 'production',
+  };
 
   const pluginContext: TransformPluginContext = {
     meta: {
       rollupVersion: '3.0.0',
-      watchMode: true
+      watchMode: true,
     },
     addWatchFile: (id) => {},
     error: console.error,
@@ -259,43 +270,51 @@ export default function vuePlugin(rawOptions: Options = {}): BunPlugin {
         sourcesContent: [],
         version: 3,
         toString: () => '',
-        toUrl: () => ''
-      }
+        toUrl: () => '',
+      };
     },
     resolve: async (source, importer, options) => {
       // 处理虚拟模块
       if (source.startsWith('\0')) {
-        return createResolvedId(source)
+        return createResolvedId(source);
       }
 
       // 处理绝对路径
       if (path.isAbsolute(source)) {
-        const resolved = tryResolveRealFileOrType(source, DEFAULT_EXTENSIONS, false)
+        const resolved = tryResolveRealFileOrType(
+          source,
+          DEFAULT_EXTENSIONS,
+          false,
+        );
         if (resolved) {
-          return createResolvedId(resolved)
+          return createResolvedId(resolved);
         }
-        return null
+        return null;
       }
 
       // 处理相对路径
       if (source.startsWith('.') && importer) {
-        const importerDir = path.dirname(importer)
-        const resolved = path.resolve(importerDir, source)
-        const finalPath = tryResolveRealFileOrType(resolved, DEFAULT_EXTENSIONS, false)
+        const importerDir = path.dirname(importer);
+        const resolved = path.resolve(importerDir, source);
+        const finalPath = tryResolveRealFileOrType(
+          resolved,
+          DEFAULT_EXTENSIONS,
+          false,
+        );
         if (finalPath) {
-          return createResolvedId(finalPath)
+          return createResolvedId(finalPath);
         }
-        return null
+        return null;
       }
 
       // 处理bare imports（裸导入）
       if (bareImportRE.test(source)) {
-        return resolveBareImport(source, importer, options)
+        return resolveBareImport(source, importer, options);
       }
 
-      return null
+      return null;
     },
-  }
+  };
 
   /**
    * 解析bare import
@@ -303,33 +322,37 @@ export default function vuePlugin(rawOptions: Options = {}): BunPlugin {
   async function resolveBareImport(
     id: string,
     importer?: string,
-    options?: { custom?: any; isEntry?: boolean; skipSelf?: boolean }
+    options?: { custom?: any; isEntry?: boolean; skipSelf?: boolean },
   ): Promise<ResolvedId | null> {
     // 解析包名和子路径
-    const match = deepImportRE.exec(id)
-    const packageName = match ? match[1] || match[2] : id
-    const subpath = match ? id.slice(packageName.length + 1) : ''
+    const match = deepImportRE.exec(id);
+    const packageName = match ? match[1] || match[2] : id;
+    const subpath = match ? id.slice(packageName.length + 1) : '';
 
     // 查找node_modules中的包
-    const packageDir = await findPackageDir(packageName, importer)
+    const packageDir = await findPackageDir(packageName, importer);
     if (!packageDir) {
-      return null
+      return null;
     }
 
     // 如果有子路径，直接解析
     if (subpath) {
-      const subpathResolved = path.resolve(packageDir, subpath)
-      const finalPath = tryResolveRealFileOrType(subpathResolved, DEFAULT_EXTENSIONS, false)
+      const subpathResolved = path.resolve(packageDir, subpath);
+      const finalPath = tryResolveRealFileOrType(
+        subpathResolved,
+        DEFAULT_EXTENSIONS,
+        false,
+      );
       if (finalPath) {
-        return createResolvedId(finalPath)
+        return createResolvedId(finalPath);
       }
-      return null
+      return null;
     }
 
     // 解析包入口点
-    const packageData = findNearestPackageData(packageDir)
+    const packageData = findNearestPackageData(packageDir);
     if (!packageData) {
-      return null
+      return null;
     }
 
     const entryPath = resolvePackageEntry(
@@ -337,50 +360,56 @@ export default function vuePlugin(rawOptions: Options = {}): BunPlugin {
       packageData,
       packageDir,
       DEFAULT_EXTENSIONS,
-      false
-    )
+      false,
+    );
 
     if (entryPath) {
-      return createResolvedId(entryPath)
+      return createResolvedId(entryPath);
     }
 
-    return null
+    return null;
   }
 
   /**
    * 查找包目录
    */
-  async function findPackageDir(packageName: string, importer?: string): Promise<string | null> {
+  async function findPackageDir(
+    packageName: string,
+    importer?: string,
+  ): Promise<string | null> {
     // 从importer开始向上查找node_modules
-    let searchDir = importer ? path.dirname(importer) : process.cwd()
+    let searchDir = importer ? path.dirname(importer) : process.cwd();
 
     while (searchDir !== path.dirname(searchDir)) {
-      const nodeModulesDir = path.join(searchDir, 'node_modules')
-      const packageDir = path.join(nodeModulesDir, packageName)
+      const nodeModulesDir = path.join(searchDir, 'node_modules');
+      const packageDir = path.join(nodeModulesDir, packageName);
 
       if (isDirectory(packageDir)) {
-        return packageDir
+        return packageDir;
       }
 
-      searchDir = path.dirname(searchDir)
+      searchDir = path.dirname(searchDir);
     }
 
     // 最后尝试全局node_modules
-    const globalNodeModules = path.join(process.cwd(), 'node_modules', packageName)
+    const globalNodeModules = path.join(
+      process.cwd(),
+      'node_modules',
+      packageName,
+    );
     if (isDirectory(globalNodeModules)) {
-      return globalNodeModules
+      return globalNodeModules;
     }
 
-    return null
+    return null;
   }
 
   return {
     name: 'bun:vue2',
     setup(build) {
-
       // const transpiler = new Bun.Transpiler();
 
-		  // let trackedImports: Record<string, number> = {};
+      // let trackedImports: Record<string, number> = {};
 
       // ==================== configResolved start ====================
 
@@ -411,7 +440,6 @@ export default function vuePlugin(rawOptions: Options = {}): BunPlugin {
 
       // ==================== configResolved end ====================
 
-
       // ==================== configureServer start ====================
       // configureServer(server) {
       //   options.devServer = server
@@ -419,14 +447,13 @@ export default function vuePlugin(rawOptions: Options = {}): BunPlugin {
 
       // build.config.???
 
-
       // ==================== configureServer end ======================
 
       // ==================== buildStart start ====================
 
       build.onStart(() => {
-        logger.info("Bundle started!")
-        options.compiler = options.compiler || resolveCompiler(options.root)
+        logger.info('Bundle started!');
+        options.compiler = options.compiler || resolveCompiler(options.root);
       });
 
       // ==================== buildStart end ======================
@@ -438,136 +465,155 @@ export default function vuePlugin(rawOptions: Options = {}): BunPlugin {
       // });
 
       // 匹配component export helper模块
-      build.onResolve({ filter: /^\0plugin-vue2:/ }, ({ path: id, importer }) => {
-        logger.debug('component export helper resolveId:', id)
-        if (id === NORMALIZER_ID) {
-          logger.debug('NORMALIZER_ID', NORMALIZER_MODULE_ID)
-          return { path: NORMALIZER_ID, namespace: 'vue-sfc-helper' }
-        }
-        if (id === HMR_RUNTIME_ID) {
-          logger.debug('[HMR] HMR_RUNTIME_ID', HMR_RUNTIME_MODULE_ID)
-          return { path: HMR_RUNTIME_ID, namespace: 'vue-sfc-helper' }
-        }
-      })
+      build.onResolve(
+        { filter: /^\0plugin-vue2:/ },
+        ({ path: id, importer }) => {
+          logger.debug('component export helper resolveId:', id);
+          if (id === NORMALIZER_ID) {
+            logger.debug('NORMALIZER_ID', NORMALIZER_MODULE_ID);
+            return { path: NORMALIZER_ID, namespace: 'vue-sfc-helper' };
+          }
+          if (id === HMR_RUNTIME_ID) {
+            logger.debug('[HMR] HMR_RUNTIME_ID', HMR_RUNTIME_MODULE_ID);
+            return { path: HMR_RUNTIME_ID, namespace: 'vue-sfc-helper' };
+          }
+        },
+      );
 
+      build.onResolve(
+        {
+          filter: /.*/,
+          // filter: /(\.vue|\?vue)/
+        },
+        ({ path: id, importer }) => {
+          logger.debug('resolveId:', id);
 
-      build.onResolve({
-        filter: /.*/
-        // filter: /(\.vue|\?vue)/
-      }, ({ path: id, importer }) => {
-        logger.debug('resolveId:', id)
+          // serve sub-part requests (*?vue) as virtual modules
+          // 检查文件是否为 .vue 文件（包括带查询参数的）
+          const cleanPath = id.split('?')[0];
+          if (cleanPath.endsWith('.vue')) {
+            // 将相对路径解析为绝对路径
+            let resolvedPath = id;
+            if (!path.isAbsolute(cleanPath)) {
+              if (importer) {
+                const importerPath = importer.includes('?')
+                  ? importer.split('?')[0]
+                  : importer;
+                const absoluteImporter = path.isAbsolute(importerPath)
+                  ? importerPath
+                  : path.resolve(options.root, importerPath);
+                const importerDir = path.dirname(absoluteImporter);
+                resolvedPath = path.resolve(importerDir, id);
+              } else {
+                resolvedPath = path.resolve(options.root, id);
+              }
+            }
+            return { path: resolvedPath, namespace: 'vue-sfc' };
+          }
 
-        // serve sub-part requests (*?vue) as virtual modules
-        // 检查文件是否为 .vue 文件（包括带查询参数的）
-        const cleanPath = id.split('?')[0]
-        if (cleanPath.endsWith('.vue')) {
-          // 将相对路径解析为绝对路径
-          let resolvedPath = id
-          if (!path.isAbsolute(cleanPath)) {
-            if (importer) {
-              const importerPath = importer.includes('?') ? importer.split('?')[0] : importer
-              const absoluteImporter = path.isAbsolute(importerPath)
-                ? importerPath
-                : path.resolve(options.root, importerPath)
-              const importerDir = path.dirname(absoluteImporter)
-              resolvedPath = path.resolve(importerDir, id)
+          // 处理带 ?vue 查询参数的非 .vue 文件（如 src 属性引用）
+          if (id.includes('?vue&')) {
+            // 解析相对路径
+            if (!path.isAbsolute(cleanPath)) {
+              if (importer) {
+                const importerPath = importer.includes('?')
+                  ? importer.split('?')[0]
+                  : importer;
+                const absoluteImporter = path.isAbsolute(importerPath)
+                  ? importerPath
+                  : path.resolve(options.root, importerPath);
+                const importerDir = path.dirname(absoluteImporter);
+                const resolved = path.resolve(importerDir, id);
+                // 返回到 vue-sfc 命名空间处理
+                return { path: resolved, namespace: 'vue-sfc' };
+              }
             } else {
-              resolvedPath = path.resolve(options.root, id)
+              return { path: id, namespace: 'vue-sfc' };
             }
           }
-          return { path: resolvedPath, namespace: 'vue-sfc' }
-        }
 
-        // 处理带 ?vue 查询参数的非 .vue 文件（如 src 属性引用）
-        if (id.includes('?vue&')) {
-          // 解析相对路径
-          if (!path.isAbsolute(cleanPath)) {
+          // 处理别名 @ -> playground 或 root
+          if (id.startsWith('@/') && importer) {
+            const resolved = path.resolve(options.root, id.slice(2));
+            logger.debug('resolveId: alias @/ ->', resolved);
+            return { path: resolved, external: false };
+          }
+
+          // 处理相对路径的静态资源
+          if (id.startsWith('./') || id.startsWith('../')) {
             if (importer) {
-              const importerPath = importer.includes('?') ? importer.split('?')[0] : importer
+              const importerPath = importer.includes('?')
+                ? importer.split('?')[0]
+                : importer;
+              // 如果 importer 本身是相对路径，先解析为绝对路径
               const absoluteImporter = path.isAbsolute(importerPath)
                 ? importerPath
-                : path.resolve(options.root, importerPath)
-              const importerDir = path.dirname(absoluteImporter)
-              const resolved = path.resolve(importerDir, id)
-              // 返回到 vue-sfc 命名空间处理
-              return { path: resolved, namespace: 'vue-sfc' }
+                : path.resolve(options.root, importerPath);
+              const importerDir = path.dirname(absoluteImporter);
+              const resolved = path.resolve(importerDir, id);
+              logger.debug(
+                'resolveId: relative path ->',
+                resolved,
+                'from',
+                importerDir,
+              );
+
+              // 检查文件是否存在
+              if (isFileReadable(resolved)) {
+                return { path: resolved, external: false };
+              }
             }
-          } else {
-            return { path: id, namespace: 'vue-sfc' }
           }
-        }
 
-        // 处理别名 @ -> playground 或 root
-        if (id.startsWith('@/') && importer) {
-          const resolved = path.resolve(options.root, id.slice(2))
-          logger.debug('resolveId: alias @/ ->', resolved)
-          return { path: resolved, external: false }
-        }
+          // 处理绝对路径
+          if (id.startsWith('/') && !id.startsWith('//')) {
+            // 先检查是否已经是完整的文件系统绝对路径（而不是URL绝对路径）
+            if (isFileReadable(id)) {
+              logger.debug('resolveId: absolute file path ->', id);
+              return { path: id, external: false };
+            }
 
-        // 处理相对路径的静态资源
-        if (id.startsWith('./') || id.startsWith('../')) {
-          if (importer) {
-            const importerPath = importer.includes('?') ? importer.split('?')[0] : importer
-            // 如果 importer 本身是相对路径，先解析为绝对路径
-            const absoluteImporter = path.isAbsolute(importerPath)
-              ? importerPath
-              : path.resolve(options.root, importerPath)
-            const importerDir = path.dirname(absoluteImporter)
-            const resolved = path.resolve(importerDir, id)
-            logger.debug('resolveId: relative path ->', resolved, 'from', importerDir)
+            // 如果不是完整路径，则视为URL绝对路径，需要拼接root
+            // 优先检查 public 目录
+            const publicPath = path.join(options.root, 'public', id);
+            if (isFileReadable(publicPath)) {
+              logger.debug('resolveId: absolute path (public) ->', publicPath);
+              return { path: publicPath, external: false };
+            }
 
-            // 检查文件是否存在
+            // 其次检查 root 目录
+            const resolved = path.join(options.root, id);
+            logger.debug('resolveId: absolute path (root) ->', resolved);
             if (isFileReadable(resolved)) {
-              return { path: resolved, external: false }
+              return { path: resolved, external: false };
             }
           }
-        }
 
-        // 处理绝对路径
-        if (id.startsWith('/') && !id.startsWith('//')) {
-          // 先检查是否已经是完整的文件系统绝对路径（而不是URL绝对路径）
-          if (isFileReadable(id)) {
-            logger.debug('resolveId: absolute file path ->', id)
-            return { path: id, external: false }
+          return undefined;
+        },
+      );
+
+      build.onLoad(
+        { filter: /.*/, namespace: 'vue-sfc-helper' },
+        ({ path: id }) => {
+          if (id === NORMALIZER_ID) {
+            return { contents: normalizerCode };
           }
-
-          // 如果不是完整路径，则视为URL绝对路径，需要拼接root
-          // 优先检查 public 目录
-          const publicPath = path.join(options.root, 'public', id)
-          if (isFileReadable(publicPath)) {
-            logger.debug('resolveId: absolute path (public) ->', publicPath)
-            return { path: publicPath, external: false }
+          if (id === HMR_RUNTIME_ID) {
+            return { contents: hmrRuntimeCode };
           }
-
-          // 其次检查 root 目录
-          const resolved = path.join(options.root, id)
-          logger.debug('resolveId: absolute path (root) ->', resolved)
-          if (isFileReadable(resolved)) {
-            return { path: resolved, external: false }
-          }
-        }
-
-        return undefined
-      });
-
-      build.onLoad({ filter: /.*/, namespace: 'vue-sfc-helper' }, ({ path: id }) => {
-        if (id === NORMALIZER_ID) {
-          return { contents: normalizerCode }
-        }
-        if (id === HMR_RUNTIME_ID) {
-          return { contents: hmrRuntimeCode }
-        }
-      });
+        },
+      );
 
       // ==================== resolveId end ======================
 
-      build.onLoad({ filter: /.*/,namespace: 'vue-sfc'}, async ({ path }) => {
+      build.onLoad({ filter: /.*/, namespace: 'vue-sfc' }, async ({ path }) => {
         try {
-          logger.debug('onLoad', path)
-          const ssr = false
-          const { filename, query } = parseVueRequest(path)
+          logger.debug('onLoad', path);
+          const ssr = false;
+          const { filename, query } = parseVueRequest(path);
           if (query.raw) {
-            return
+            return;
           }
           if (!filter(filename) && !query.vue) {
             // if (
@@ -580,68 +626,72 @@ export default function vuePlugin(rawOptions: Options = {}): BunPlugin {
             //     sourceMap: true
             //   })
             // }
-            return
+            return;
           }
 
           if (!query.vue) {
             // main request
             // return transformMain(code, filename, options, this, ssr)
             const rawCode = await Bun.file(path).text();
-            const transformed = await transformMain(rawCode, filename, options, pluginContext, ssr);
+            const transformed = await transformMain(
+              rawCode,
+              filename,
+              options,
+              pluginContext,
+              ssr,
+            );
             // console.log('transformed', transformed?.code)
-            await Bun.write(filename+'.js', transformed?.code || rawCode);
-            return { contents: transformed?.code || rawCode }
-          }
-          else {
-            logger.debug('query.type =>', query)
+            await Bun.write(filename + '.js', transformed?.code || rawCode);
+            return { contents: transformed?.code || rawCode };
+          } else {
+            logger.debug('query.type =>', query);
             // sub block request
             const descriptor = query.src
               ? getSrcDescriptor(filename, query)!
-              : getDescriptor(filename, options)!
+              : getDescriptor(filename, options)!;
 
             // 如果是 src 引用且是 script 类型，直接返回文件内容
             if (query.src && query.type === 'script') {
-              return { contents: await Bun.file(filename).text() }
+              return { contents: await Bun.file(filename).text() };
             }
 
             // 如果是 src 引用且是 template 类型，需要编译 template
             if (query.src && query.type === 'template') {
-              const templateContent = await Bun.file(filename).text()
+              const templateContent = await Bun.file(filename).text();
               const transformed = await transformTemplateAsModule(
                 templateContent,
                 descriptor,
                 options,
                 pluginContext,
-                ssr
-              )
-              return { contents: transformed }
+                ssr,
+              );
+              return { contents: transformed };
             }
 
             // 如果是 src 引用且是 style 类型，需要处理样式
             if (query.src && query.type === 'style') {
-              const styleContent = await Bun.file(filename).text()
+              const styleContent = await Bun.file(filename).text();
               const transformed = await transformStyle(
                 styleContent,
                 descriptor,
                 Number(query.index),
                 options,
                 pluginContext,
-                filename
-              )
-              return { contents: transformed?.code || '' }
+                filename,
+              );
+              return { contents: transformed?.code || '' };
             }
 
-            let block: SFCBlock | null | undefined
+            let block: SFCBlock | null | undefined;
             if (query.type === 'script') {
               // handle <scrip> + <script setup> merge via compileScript()
-              block = getResolvedScript(descriptor, ssr)
-              if (block){
+              block = getResolvedScript(descriptor, ssr);
+              if (block) {
                 // console.log(`[script block] returning block.content`, block.content)
-                return { contents: block.content }
+                return { contents: block.content };
               }
-            }
-            else if (query.type === 'template') {
-              block = descriptor.template!
+            } else if (query.type === 'template') {
+              block = descriptor.template!;
               if (block) {
                 // console.log(`[template block] returning block.content`, block.content)
                 const transformed = await transformTemplateAsModule(
@@ -649,19 +699,17 @@ export default function vuePlugin(rawOptions: Options = {}): BunPlugin {
                   descriptor,
                   options,
                   pluginContext,
-                  ssr
-                )
+                  ssr,
+                );
 
                 // console.log('[template] transformed', transformed)
 
                 return {
-                  contents: transformed
-                }
+                  contents: transformed,
+                };
               }
-
-            }
-            else if (query.type === 'style') {
-              block = descriptor.styles[query.index!]
+            } else if (query.type === 'style') {
+              block = descriptor.styles[query.index!];
               if (block) {
                 // console.log(`[style block] returning block.content`, block.content)
                 const transformed = await transformStyle(
@@ -670,41 +718,41 @@ export default function vuePlugin(rawOptions: Options = {}): BunPlugin {
                   Number(query.index),
                   options,
                   pluginContext,
-                  filename
-                )
+                  filename,
+                );
 
                 // console.log('[style] transformed', transformed)
 
                 return {
-                  contents: transformed?.code || ''
-                }
+                  contents: transformed?.code || '',
+                };
               }
-
-            }
-            else if (query.index != null) {
+            } else if (query.index != null) {
               // 自定义块处理交给独立的自定义块插件处理
               // 主插件不再处理 type=custom 的请求，实现解耦
               if (query.type === 'custom') {
-                logger.debug('[main plugin] 跳过自定义块处理，交给自定义块插件:', filename, query)
-                return undefined // 让其他插件处理
+                logger.debug(
+                  '[main plugin] 跳过自定义块处理，交给自定义块插件:',
+                  filename,
+                  query,
+                );
+                return undefined; // 让其他插件处理
               }
 
-              block = descriptor.customBlocks[query.index]
+              block = descriptor.customBlocks[query.index];
               if (block) {
                 // console.log(`[custom block] returning block.content`, block.content)
-                return { contents: block.content }
+                return { contents: block.content };
               }
             }
           }
         } catch (error) {
           // Bun插件错误处理：记录并重新抛出错误
-          logger.error(`Error processing ${path}:`, error)
+          logger.error(`Error processing ${path}:`, error);
           // 重新抛出错误让Bun运行时处理
-          throw error
+          throw error;
         }
       });
-
-    }
-  }
-
+    },
+  };
 }

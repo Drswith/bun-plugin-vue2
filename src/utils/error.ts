@@ -1,18 +1,18 @@
-import type { WarningMessage } from 'vue/compiler-sfc'
+import type { WarningMessage } from 'vue/compiler-sfc';
 
 /**
  * Bun插件错误信息接口
  * 参考: https://bun.sh/docs/bundler#logs-and-errors
  */
 export interface BunPluginError {
-  name: string
-  message: string
+  name: string;
+  message: string;
   position?: {
-    file: string
-    line?: number
-    column?: number
-  }
-  notes?: string[]
+    file: string;
+    line?: number;
+    column?: number;
+  };
+  notes?: string[];
 }
 
 /**
@@ -21,7 +21,7 @@ export interface BunPluginError {
  */
 export function createBunPluginError(
   filename: string,
-  error: Error | WarningMessage
+  error: Error | WarningMessage,
 ): BunPluginError {
   if ('msg' in error) {
     // Vue编译器的WarningMessage格式
@@ -29,35 +29,35 @@ export function createBunPluginError(
       name: 'VueCompilerError',
       message: error.msg,
       position: {
-        file: filename
-      }
-    }
+        file: filename,
+      },
+    };
 
     // 如果有位置信息，添加到错误对象中
     if ('line' in error && typeof error.line === 'number') {
-      bunError.position!.line = error.line
+      bunError.position!.line = error.line;
     }
     if ('column' in error && typeof error.column === 'number') {
-      bunError.position!.column = error.column
+      bunError.position!.column = error.column;
     }
 
-    return bunError
+    return bunError;
   } else {
     // 标准Error对象
     const bunError: BunPluginError = {
       name: error.name || 'VuePluginError',
       message: error.message,
       position: {
-        file: filename
-      }
-    }
+        file: filename,
+      },
+    };
 
     // 如果有stack信息，添加为notes
     if (error.stack) {
-      bunError.notes = [error.stack]
+      bunError.notes = [error.stack];
     }
 
-    return bunError
+    return bunError;
   }
 }
 
@@ -66,26 +66,26 @@ export function createBunPluginError(
  * Bun会自动美化错误对象，但我们也可以提供自定义格式
  */
 export function formatBunError(error: BunPluginError): string {
-  let output = `\n[bun:vue2] ${error.name}: ${error.message}`
+  let output = `\n[bun:vue2] ${error.name}: ${error.message}`;
 
   if (error.position) {
-    output += `\n  at ${error.position.file}`
+    output += `\n  at ${error.position.file}`;
     if (error.position.line !== undefined) {
-      output += `:${error.position.line}`
+      output += `:${error.position.line}`;
       if (error.position.column !== undefined) {
-        output += `:${error.position.column}`
+        output += `:${error.position.column}`;
       }
     }
   }
 
   if (error.notes && error.notes.length > 0) {
-    output += `\n\nNotes:\n`
-    error.notes.forEach(note => {
-      output += `  ${note}\n`
-    })
+    output += `\n\nNotes:\n`;
+    error.notes.forEach((note) => {
+      output += `  ${note}\n`;
+    });
   }
 
-  return output
+  return output;
 }
 
 /**
@@ -94,16 +94,16 @@ export function formatBunError(error: BunPluginError): string {
  */
 export function throwBunPluginError(
   filename: string,
-  error: Error | WarningMessage
+  error: Error | WarningMessage,
 ): never {
-  const bunError = createBunPluginError(filename, error)
-  const formattedError = new Error(formatBunError(bunError))
-  formattedError.name = bunError.name
+  const bunError = createBunPluginError(filename, error);
+  const formattedError = new Error(formatBunError(bunError));
+  formattedError.name = bunError.name;
 
   // 保留原始错误信息供调试
-  ;(formattedError as any).bunPluginError = bunError
+  (formattedError as any).bunPluginError = bunError;
 
-  throw formattedError
+  throw formattedError;
 }
 
 /**
@@ -112,14 +112,14 @@ export function throwBunPluginError(
  */
 export function logBunWarning(
   filename: string,
-  warning: string | WarningMessage
+  warning: string | WarningMessage,
 ): void {
-  const message = typeof warning === 'string' ? warning : warning.msg
-  console.warn(`[bun:vue2] Warning in ${filename}:\n  ${message}`)
+  const message = typeof warning === 'string' ? warning : warning.msg;
+  console.warn(`[bun:vue2] Warning in ${filename}:\n  ${message}`);
 }
 
 // 向后兼容的别名（逐步迁移用）
 /**
  * @deprecated 使用 createBunPluginError 代替
  */
-export const createRollupError = createBunPluginError
+export const createRollupError = createBunPluginError;

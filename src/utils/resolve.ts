@@ -1,21 +1,29 @@
-import fs from 'node:fs'
-import path from 'node:path'
-import type { ResolvedId } from '../index'
+import fs from 'node:fs';
+import path from 'node:path';
+import type { ResolvedId } from '../index';
 
 // 常量定义
-export const DEFAULT_EXTENSIONS = ['.mjs', '.js', '.mts', '.ts', '.jsx', '.tsx', '.json']
-export const DEFAULT_MAIN_FIELDS = ['module', 'jsnext:main', 'jsnext', 'main']
+export const DEFAULT_EXTENSIONS = [
+  '.mjs',
+  '.js',
+  '.mts',
+  '.ts',
+  '.jsx',
+  '.tsx',
+  '.json',
+];
+export const DEFAULT_MAIN_FIELDS = ['module', 'jsnext:main', 'jsnext', 'main'];
 
 // 正则表达式
-export const bareImportRE = /^(?![a-zA-Z]:)[\w@](?!.*:\/\/)/
-export const deepImportRE = /^([^@][^/]*)\/|^(@[^/]+\/[^/]+)\//
-export const isWindows = process.platform === 'win32'
+export const bareImportRE = /^(?![a-zA-Z]:)[\w@](?!.*:\/\/)/;
+export const deepImportRE = /^([^@][^/]*)\/|^(@[^/]+\/[^/]+)\//;
+export const isWindows = process.platform === 'win32';
 
 /**
  * 规范化路径，统一使用正斜杠
  */
 export function normalizePath(id: string): string {
-  return path.posix.normalize(isWindows ? id.replace(/\\/g, '/') : id)
+  return path.posix.normalize(isWindows ? id.replace(/\\/g, '/') : id);
 }
 
 /**
@@ -23,9 +31,9 @@ export function normalizePath(id: string): string {
  */
 export function tryStatSync(file: string): fs.Stats | undefined {
   try {
-    return fs.statSync(file, { throwIfNoEntry: false })
+    return fs.statSync(file, { throwIfNoEntry: false });
   } catch {
-    return undefined
+    return undefined;
   }
 }
 
@@ -33,14 +41,14 @@ export function tryStatSync(file: string): fs.Stats | undefined {
  * 检查文件是否存在且可读
  */
 export function isFileReadable(filename: string): boolean {
-  const stat = tryStatSync(filename)
-  if (!stat) return false
-  
+  const stat = tryStatSync(filename);
+  if (!stat) return false;
+
   try {
-    fs.accessSync(filename, fs.constants.R_OK)
-    return true
+    fs.accessSync(filename, fs.constants.R_OK);
+    return true;
   } catch {
-    return false
+    return false;
   }
 }
 
@@ -48,8 +56,8 @@ export function isFileReadable(filename: string): boolean {
  * 检查是否为目录
  */
 export function isDirectory(path: string): boolean {
-  const stat = tryStatSync(path)
-  return stat?.isDirectory() ?? false
+  const stat = tryStatSync(path);
+  return stat?.isDirectory() ?? false;
 }
 
 /**
@@ -57,11 +65,11 @@ export function isDirectory(path: string): boolean {
  */
 export function tryResolveRealFile(
   file: string,
-  preserveSymlinks?: boolean
+  preserveSymlinks?: boolean,
 ): string | undefined {
-  const stat = tryStatSync(file)
+  const stat = tryStatSync(file);
   if (stat?.isFile()) {
-    return preserveSymlinks ? file : fs.realpathSync(file)
+    return preserveSymlinks ? file : fs.realpathSync(file);
   }
 }
 
@@ -71,11 +79,11 @@ export function tryResolveRealFile(
 export function tryResolveRealFileWithExtensions(
   filePath: string,
   extensions: string[],
-  preserveSymlinks?: boolean
+  preserveSymlinks?: boolean,
 ): string | undefined {
   for (const ext of extensions) {
-    const res = tryResolveRealFile(filePath + ext, preserveSymlinks)
-    if (res) return res
+    const res = tryResolveRealFile(filePath + ext, preserveSymlinks);
+    if (res) return res;
   }
 }
 
@@ -85,21 +93,21 @@ export function tryResolveRealFileWithExtensions(
 export function tryResolveRealFileOrType(
   file: string,
   extensions: string[],
-  preserveSymlinks?: boolean
+  preserveSymlinks?: boolean,
 ): string | undefined {
   // 首先尝试原始文件
-  const withoutExt = tryResolveRealFile(file, preserveSymlinks)
-  if (withoutExt) return withoutExt
-  
+  const withoutExt = tryResolveRealFile(file, preserveSymlinks);
+  if (withoutExt) return withoutExt;
+
   // 然后尝试添加扩展名
-  return tryResolveRealFileWithExtensions(file, extensions, preserveSymlinks)
+  return tryResolveRealFileWithExtensions(file, extensions, preserveSymlinks);
 }
 
 /**
  * 检查是否在node_modules中
  */
 export function isInNodeModules(id: string): boolean {
-  return id.includes('node_modules')
+  return id.includes('node_modules');
 }
 
 /**
@@ -107,29 +115,31 @@ export function isInNodeModules(id: string): boolean {
  */
 export function loadPackageData(pkgPath: string): any {
   try {
-    const data = fs.readFileSync(pkgPath, 'utf-8')
-    return JSON.parse(data)
+    const data = fs.readFileSync(pkgPath, 'utf-8');
+    return JSON.parse(data);
   } catch {
-    return null
+    return null;
   }
 }
 
 /**
  * 查找最近的package.json
  */
-export function findNearestPackageData(dir: string): { data: any; dir: string } | null {
-  let current = dir
-  
+export function findNearestPackageData(
+  dir: string,
+): { data: any; dir: string } | null {
+  let current = dir;
+
   while (current !== path.dirname(current)) {
-    const pkgPath = path.join(current, 'package.json')
-    const data = loadPackageData(pkgPath)
+    const pkgPath = path.join(current, 'package.json');
+    const data = loadPackageData(pkgPath);
     if (data) {
-      return { data, dir: current }
+      return { data, dir: current };
     }
-    current = path.dirname(current)
+    current = path.dirname(current);
   }
-  
-  return null
+
+  return null;
 }
 
 /**
@@ -140,45 +150,50 @@ export function resolvePackageEntry(
   packageData: any,
   dir: string,
   extensions: string[],
-  preserveSymlinks?: boolean
+  preserveSymlinks?: boolean,
 ): string | undefined {
-  const { data } = packageData
-  
+  const { data } = packageData;
+
   // 尝试exports字段
   if (data.exports) {
     // 简化的exports处理，只处理"."入口
-    const exports = data.exports
+    const exports = data.exports;
     if (typeof exports === 'string') {
-      const resolved = path.resolve(dir, exports)
-      return tryResolveRealFileOrType(resolved, extensions, preserveSymlinks)
+      const resolved = path.resolve(dir, exports);
+      return tryResolveRealFileOrType(resolved, extensions, preserveSymlinks);
     } else if (exports['.']) {
-      const entry = exports['.']
-      const entryPath = typeof entry === 'string' ? entry : entry.import || entry.default
+      const entry = exports['.'];
+      const entryPath =
+        typeof entry === 'string' ? entry : entry.import || entry.default;
       if (entryPath) {
-        const resolved = path.resolve(dir, entryPath)
-        return tryResolveRealFileOrType(resolved, extensions, preserveSymlinks)
+        const resolved = path.resolve(dir, entryPath);
+        return tryResolveRealFileOrType(resolved, extensions, preserveSymlinks);
       }
     }
   }
-  
+
   // 尝试main字段
   for (const field of DEFAULT_MAIN_FIELDS) {
     if (data[field]) {
-      const resolved = path.resolve(dir, data[field])
-      const result = tryResolveRealFileOrType(resolved, extensions, preserveSymlinks)
-      if (result) return result
+      const resolved = path.resolve(dir, data[field]);
+      const result = tryResolveRealFileOrType(
+        resolved,
+        extensions,
+        preserveSymlinks,
+      );
+      if (result) return result;
     }
   }
-  
+
   // 尝试默认入口
-  const defaultEntries = ['index.js', 'index.json', 'index.node']
+  const defaultEntries = ['index.js', 'index.json', 'index.node'];
   for (const entry of defaultEntries) {
-    const resolved = path.resolve(dir, entry)
-    const result = tryResolveRealFile(resolved, preserveSymlinks)
-    if (result) return result
+    const resolved = path.resolve(dir, entry);
+    const result = tryResolveRealFile(resolved, preserveSymlinks);
+    if (result) return result;
   }
-  
-  return undefined
+
+  return undefined;
 }
 
 /**
@@ -189,13 +204,13 @@ export function createResolvedId(
   external: boolean | 'absolute' = false,
   meta: any = {},
   moduleSideEffects: boolean = true,
-  syntheticNamedExports: boolean | string = false
+  syntheticNamedExports: boolean | string = false,
 ): ResolvedId {
   return {
     id: normalizePath(id),
     external,
     meta,
     moduleSideEffects,
-    syntheticNamedExports
-  }
+    syntheticNamedExports,
+  };
 }
