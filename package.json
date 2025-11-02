@@ -20,7 +20,6 @@
   },
   "workspaces": [
     "playground",
-    "playground-react",
     "packages/*"
   ],
   "module": "src/index.ts",
