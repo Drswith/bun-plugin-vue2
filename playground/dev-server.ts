@@ -10,7 +10,7 @@ async function devServer() {
       routes: {
         '/': app
       },
-      development: process.env.NODE_ENV !== "production" && {
+      development:  {
         // Enable browser hot reloading in development
         hmr: true,
 

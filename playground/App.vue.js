@@ -10,4 +10,10 @@ _sfc_render._withStripped = true;
 import __normalizer from "\x00plugin-vue2:normalizer";
 var __component__ = __normalizer(_sfc_main, _sfc_render, _sfc_staticRenderFns, false, null, null, null, null);
 __component__.options.__file = "/Users/drs/workspaces/personal/bun-plugin-vue2/playground/App.vue";
+import __VUE_HMR_RUNTIME__ from "\x00plugin-vue2:hmr-runtime";
+const __componentId = "f13b4d11";
+if (!__VUE_HMR_RUNTIME__.isRecorded(__componentId)) {
+  __VUE_HMR_RUNTIME__.createRecord(__componentId, __component__.options);
+}
+if (undefined) {}
 export default __component__.exports;
