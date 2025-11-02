@@ -41,8 +41,15 @@ jobs:
       - name: Build
         run: bun run build
 
+      # - name: Configure npm registry
+      #   run: |
+      #     echo "//registry.npmjs.org/:_authToken=${{ secrets.NPM_TOKEN }}" > ~/.npmrc
+      #     echo "registry=https://registry.npmjs.org/" >> ~/.npmrc
+
+      # - name: Publish to npm
+      #   run: bunx npm publish --access public
       - name: Publish to npm
-        run: bun publish
+        run:  bunx --bun npm publish
         env:
+          NPM_CONFIG_PROVENANCE: true
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
-          NPM_CONFIG_REGISTRY: https://registry.npmjs.org/
