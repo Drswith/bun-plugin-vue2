@@ -7,6 +7,7 @@
     "dev": "bun --hot ./src/index.ts",
     "build": "bun build ./src/index.ts --outdir=dist --sourcemap --target=bun",
     "build:playground": "cd playground && bun run build",
+    "typecheck": "tsc --noEmit",
     "test": "bun test"
   },
   "devDependencies": {
