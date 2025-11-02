@@ -362,13 +362,9 @@ export default function vuePlugin(rawOptions: Options = {}): BunPlugin {
       //   return { path: id, namespace: 'vue-sfc' }
       // });
 
-      build.onResolve({
-        filter: /.*/
-        // filter: /\.vue/
-      }, ({ path: id, importer }) => {
-        console.log('resolveId: ', id)
-
-        // component export helper
+      // 匹配component export helper模块
+      build.onResolve({ filter: /^\0plugin-vue2:/ }, ({ path: id, importer }) => {
+        console.log('component export helper resolveId: ', id)
         if (id === NORMALIZER_ID) {
           console.log('NORMALIZER_ID', NORMALIZER_MODULE_ID)
           return { path: NORMALIZER_ID, namespace: 'vue-sfc-helper' }
@@ -377,6 +373,15 @@ export default function vuePlugin(rawOptions: Options = {}): BunPlugin {
           console.log('[HMR] HMR_RUNTIME_ID', HMR_RUNTIME_MODULE_ID)
           return { path: HMR_RUNTIME_ID, namespace: 'vue-sfc-helper' }
         }
+      })
+
+
+      build.onResolve({
+        filter: /.*/
+        // filter: /(\.vue|\?vue)/
+      }, ({ path: id, importer }) => {
+        console.log('resolveId: ', id)
+
         // serve sub-part requests (*?vue) as virtual modules
         // 检查文件是否为 .vue 文件（包括带查询参数的）
         const cleanPath = id.split('?')[0]
@@ -445,6 +450,13 @@ export default function vuePlugin(rawOptions: Options = {}): BunPlugin {
 
         // 处理绝对路径
         if (id.startsWith('/') && !id.startsWith('//')) {
+          // 先检查是否已经是完整的文件系统绝对路径（而不是URL绝对路径）
+          if (isFileReadable(id)) {
+            console.log('resolveId: absolute file path ->', id)
+            return { path: id, external: false }
+          }
+
+          // 如果不是完整路径，则视为URL绝对路径，需要拼接root
           // 优先检查 public 目录
           const publicPath = path.join(options.root, 'public', id)
           if (isFileReadable(publicPath)) {
@@ -454,7 +466,7 @@ export default function vuePlugin(rawOptions: Options = {}): BunPlugin {
 
           // 其次检查 root 目录
           const resolved = path.join(options.root, id)
-          console.log('resolveId: absolute path ->', resolved)
+          console.log('resolveId: absolute path (root) ->', resolved)
           if (isFileReadable(resolved)) {
             return { path: resolved, external: false }
           }
