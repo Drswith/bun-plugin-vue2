@@ -15,6 +15,7 @@
   "devDependencies": {
     "@biomejs/biome": "2.3.2",
     "@types/bun": "latest",
+    "@types/hash-sum": "^1.0.2",
     "hash-sum": "^2.0.0",
     "slash": "^3.0.0",
     "source-map": "^0.6.1",
