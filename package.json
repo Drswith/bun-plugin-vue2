@@ -8,14 +8,17 @@
     "build": "bun build ./src/index.ts --outdir=dist --sourcemap --target=bun",
     "build:playground": "cd playground && bun run build",
     "typecheck": "tsc --noEmit",
+    "lint": "biome check",
+    "lint:fix": "biome check --write",
     "test": "bun test"
   },
   "devDependencies": {
+    "@biomejs/biome": "2.3.2",
     "@types/bun": "latest",
-    "slash": "^3.0.0",
-    "vue": "^2.7.16",
     "hash-sum": "^2.0.0",
-    "source-map": "^0.6.1"
+    "slash": "^3.0.0",
+    "source-map": "^0.6.1",
+    "vue": "^2.7.16"
   },
   "workspaces": [
     "playground",
