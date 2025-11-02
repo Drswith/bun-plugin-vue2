@@ -4,7 +4,6 @@
   "private": true,
   "description": "",
   "scripts": {
-    "dev": "bun --hot dev-server.ts",
     "build": "bun build.ts"
   },
   "dependencies": {
