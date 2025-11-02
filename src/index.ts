@@ -41,7 +41,66 @@ import {
 export { parseVueRequest } from './utils/query'
 export type { VueQuery } from './utils/query'
 
+/**
+ * 日志等级
+ */
+export type LogLevel = 'debug' | 'info' | 'warn' | 'error' | 'silent'
 
+/**
+ * 日志等级优先级
+ */
+const LOG_LEVEL_PRIORITY: Record<LogLevel, number> = {
+  debug: 0,
+  info: 1,
+  warn: 2,
+  error: 3,
+  silent: 4
+}
+
+/**
+ * 日志工具类
+ */
+class Logger {
+  private level: LogLevel
+  private prefix: string
+
+  constructor(level: LogLevel = 'info', prefix: string = '[bun:vue2]') {
+    this.level = level
+    this.prefix = prefix
+  }
+
+  setLevel(level: LogLevel) {
+    this.level = level
+  }
+
+  private shouldLog(level: LogLevel): boolean {
+    return LOG_LEVEL_PRIORITY[level] >= LOG_LEVEL_PRIORITY[this.level]
+  }
+
+  debug(...args: any[]) {
+    if (this.shouldLog('debug')) {
+      console.log(this.prefix, '[DEBUG]', ...args)
+    }
+  }
+
+  info(...args: any[]) {
+    if (this.shouldLog('info')) {
+      console.info(this.prefix, '[INFO]', ...args)
+    }
+  }
+
+  warn(...args: any[]) {
+    if (this.shouldLog('warn')) {
+      console.warn(this.prefix, '[WARN]', ...args)
+    }
+  }
+
+  error(...args: any[]) {
+    if (this.shouldLog('error')) {
+      console.error(this.prefix, '[ERROR]', ...args)
+    }
+  }
+}
 
 export interface Options {
   include?: string | RegExp | (string | RegExp)[]
@@ -67,6 +126,17 @@ export interface Options {
   // customElement?: boolean | string | RegExp | (string | RegExp)[]
   // reactivityTransform?: boolean | string | RegExp | (string | RegExp)[]
   compiler?: typeof _compiler
+
+  /**
+   * 日志等级配置
+   * - 'debug': 输出所有日志，包括详细的调试信息
+   * - 'info': 输出信息、警告和错误日志
+   * - 'warn': 仅输出警告和错误日志
+   * - 'error': 仅输出错误日志
+   * - 'silent': 不输出任何日志
+   * @default 'info' (生产环境) | 'debug' (开发环境)
+   */
+  logLevel?: LogLevel
 }
 
 export interface ResolvedOptions extends Options {
@@ -146,12 +216,17 @@ export default function vuePlugin(rawOptions: Options = {}): BunPlugin {
 
   const {
     include = /\.vue$/,
-    exclude
+    exclude,
+    logLevel
     // customElement = /\.ce\.vue$/,
     // reactivityTransform = false
   } = rawOptions
 
   const filter = createFilter(include, exclude)
+
+  // 初始化日志工具，默认开发环境使用 debug，生产环境使用 info
+  const defaultLogLevel = process.env.NODE_ENV === 'production' ? 'silent' : 'info'
+  const logger = new Logger(logLevel || defaultLogLevel)
 
   let options: ResolvedOptions = {
     isProduction: process.env.NODE_ENV === 'production',
@@ -350,7 +425,7 @@ export default function vuePlugin(rawOptions: Options = {}): BunPlugin {
       // ==================== buildStart start ====================
 
       build.onStart(() => {
-        console.log("Bundle started!");
+        logger.info("Bundle started!")
         options.compiler = options.compiler || resolveCompiler(options.root)
       });
 
@@ -364,13 +439,13 @@ export default function vuePlugin(rawOptions: Options = {}): BunPlugin {
 
       // 匹配component export helper模块
       build.onResolve({ filter: /^\0plugin-vue2:/ }, ({ path: id, importer }) => {
-        console.log('component export helper resolveId: ', id)
+        logger.debug('component export helper resolveId:', id)
         if (id === NORMALIZER_ID) {
-          console.log('NORMALIZER_ID', NORMALIZER_MODULE_ID)
+          logger.debug('NORMALIZER_ID', NORMALIZER_MODULE_ID)
           return { path: NORMALIZER_ID, namespace: 'vue-sfc-helper' }
         }
         if (id === HMR_RUNTIME_ID) {
-          console.log('[HMR] HMR_RUNTIME_ID', HMR_RUNTIME_MODULE_ID)
+          logger.debug('[HMR] HMR_RUNTIME_ID', HMR_RUNTIME_MODULE_ID)
           return { path: HMR_RUNTIME_ID, namespace: 'vue-sfc-helper' }
         }
       })
@@ -380,7 +455,7 @@ export default function vuePlugin(rawOptions: Options = {}): BunPlugin {
         filter: /.*/
         // filter: /(\.vue|\?vue)/
       }, ({ path: id, importer }) => {
-        console.log('resolveId: ', id)
+        logger.debug('resolveId:', id)
 
         // serve sub-part requests (*?vue) as virtual modules
         // 检查文件是否为 .vue 文件（包括带查询参数的）
@@ -425,7 +500,7 @@ export default function vuePlugin(rawOptions: Options = {}): BunPlugin {
         // 处理别名 @ -> playground 或 root
         if (id.startsWith('@/') && importer) {
           const resolved = path.resolve(options.root, id.slice(2))
-          console.log('resolveId: alias @/ ->', resolved)
+          logger.debug('resolveId: alias @/ ->', resolved)
           return { path: resolved, external: false }
         }
 
@@ -439,7 +514,7 @@ export default function vuePlugin(rawOptions: Options = {}): BunPlugin {
               : path.resolve(options.root, importerPath)
             const importerDir = path.dirname(absoluteImporter)
             const resolved = path.resolve(importerDir, id)
-            console.log('resolveId: relative path ->', resolved, 'from', importerDir)
+            logger.debug('resolveId: relative path ->', resolved, 'from', importerDir)
 
             // 检查文件是否存在
             if (isFileReadable(resolved)) {
@@ -452,7 +527,7 @@ export default function vuePlugin(rawOptions: Options = {}): BunPlugin {
         if (id.startsWith('/') && !id.startsWith('//')) {
           // 先检查是否已经是完整的文件系统绝对路径（而不是URL绝对路径）
           if (isFileReadable(id)) {
-            console.log('resolveId: absolute file path ->', id)
+            logger.debug('resolveId: absolute file path ->', id)
             return { path: id, external: false }
           }
 
@@ -460,13 +535,13 @@ export default function vuePlugin(rawOptions: Options = {}): BunPlugin {
           // 优先检查 public 目录
           const publicPath = path.join(options.root, 'public', id)
           if (isFileReadable(publicPath)) {
-            console.log('resolveId: absolute path (public) ->', publicPath)
+            logger.debug('resolveId: absolute path (public) ->', publicPath)
             return { path: publicPath, external: false }
           }
 
           // 其次检查 root 目录
           const resolved = path.join(options.root, id)
-          console.log('resolveId: absolute path (root) ->', resolved)
+          logger.debug('resolveId: absolute path (root) ->', resolved)
           if (isFileReadable(resolved)) {
             return { path: resolved, external: false }
           }
@@ -488,7 +563,7 @@ export default function vuePlugin(rawOptions: Options = {}): BunPlugin {
 
       build.onLoad({ filter: /.*/,namespace: 'vue-sfc'}, async ({ path }) => {
         try {
-          console.log('onLoad', path)
+          logger.debug('onLoad', path)
           const ssr = false
           const { filename, query } = parseVueRequest(path)
           if (query.raw) {
@@ -518,7 +593,7 @@ export default function vuePlugin(rawOptions: Options = {}): BunPlugin {
             return { contents: transformed?.code || rawCode }
           }
           else {
-            console.log('query.type => ',  query)
+            logger.debug('query.type =>', query)
             // sub block request
             const descriptor = query.src
               ? getSrcDescriptor(filename, query)!
@@ -610,7 +685,7 @@ export default function vuePlugin(rawOptions: Options = {}): BunPlugin {
               // 自定义块处理交给独立的自定义块插件处理
               // 主插件不再处理 type=custom 的请求，实现解耦
               if (query.type === 'custom') {
-                console.log('[main plugin] 跳过自定义块处理，交给自定义块插件:', filename, query)
+                logger.debug('[main plugin] 跳过自定义块处理，交给自定义块插件:', filename, query)
                 return undefined // 让其他插件处理
               }
 
@@ -623,7 +698,7 @@ export default function vuePlugin(rawOptions: Options = {}): BunPlugin {
           }
         } catch (error) {
           // Bun插件错误处理：记录并重新抛出错误
-          console.error(`[bun:vue2] Error processing ${path}:`, error)
+          logger.error(`Error processing ${path}:`, error)
           // 重新抛出错误让Bun运行时处理
           throw error
         }

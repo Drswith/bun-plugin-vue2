@@ -1,6 +1,6 @@
 # bun-plugin-vue2
 
-一个用于 Bun 的 Vue 2.7 单文件组件（SFC）插件。
+一个移植自[@vitejs/plugin-vue2](https://github.com/vitejs/vite-plugin-vue2)用于 Bun 的 Vue 2.7 单文件组件（SFC）插件。
 
 ## 简介
 
