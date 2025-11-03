@@ -1,6 +1,6 @@
 # bun-plugin-vue2
 
-[English](./README.md) | [简体中文](./README.zh-CN.md)
+[English](./README.md) | 简体中文
 
 一个移植自[@vitejs/plugin-vue2](https://github.com/vitejs/vite-plugin-vue2)用于 Bun 的 Vue 2.7 单文件组件（SFC）插件。
 

@@ -1,6 +1,6 @@
 # bun-plugin-vue2
 
-[English](./README.md) | [简体中文](./README.zh-CN.md)
+English | [简体中文](./README.zh-CN.md)
 
 A Vue 2.7 Single File Component (SFC) plugin for Bun, ported from [@vitejs/plugin-vue2](https://github.com/vitejs/vite-plugin-vue2).
 
