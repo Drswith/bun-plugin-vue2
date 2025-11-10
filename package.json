@@ -1,9 +1,13 @@
 {
   "name": "bun-plugin-vue2",
-  "version": "0.1.16",
   "type": "module",
+  "version": "0.1.16",
   "author": "Drswith",
+  "description": "A Vue 2.7 Single File Component (SFC) plugin for Bun, ported from @vitejs/plugin-vue2.",
   "license": "MIT",
+  "engines": {
+    "bun": ">=1.0.0"
+  },
   "homepage": "https://github.com/Drswith/bun-plugin-vue2#readme",
   "repository": {
     "type": "git",
@@ -12,10 +16,31 @@
   "bugs": {
     "url": "https://github.com/Drswith/bun-plugin-vue2/issues"
   },
-  "module": "src/index.ts",
+  "keywords": [
+    "bun",
+    "vue2",
+    "sfc",
+    "plugin",
+    "tool"
+  ],
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "types": "./dist/index.d.ts",
+  "module": "./dist/index.js",
+  "main": "./dist/index.js",
+  "publishConfig": {
+    "access": "public",
+    "registry": "https://registry.npmjs.org/",
+    "provenance": true
+  },
   "scripts": {
     "dev": "bun --hot ./src/index.ts",
-    "build": "bun build ./src/index.ts --outdir=dist --sourcemap --target=bun",
+    "build": "bun ./scripts/build.ts",
     "build:playground": "cd playground && bun run build",
     "typecheck": "tsc --noEmit",
     "lint": "biome check",
@@ -29,6 +54,7 @@
     "@types/bun": "latest",
     "@types/hash-sum": "^1.0.2",
     "bumpp": "^10.3.1",
+    "bun-plugin-dts": "^0.3.0",
     "hash-sum": "^2.0.0",
     "slash": "^3.0.0",
     "source-map": "^0.6.1",
@@ -40,10 +66,5 @@
   ],
   "peerDependencies": {
     "typescript": "^5"
-  },
-  "publishConfig": {
-    "access": "public",
-    "registry": "https://registry.npmjs.org/",
-    "provenance": true
   }
 }
