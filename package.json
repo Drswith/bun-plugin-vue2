@@ -1,7 +1,7 @@
 {
   "name": "bun-plugin-vue2",
   "type": "module",
-  "version": "0.1.17",
+  "version": "0.1.18",
   "author": "Drswith",
   "description": "A Vue 2.7 Single File Component (SFC) plugin for Bun, ported from @vitejs/plugin-vue2.",
   "license": "MIT",
